@@ -7,7 +7,7 @@ The adversarial workflow is:
 ```text
 reviewed attack suite
         ↓
-complete mutation plan fixed before detection
+content-addressed attack plan fixed before detection
         ↓
 source artifact → baseline detectors
         ↓
@@ -18,9 +18,27 @@ post-transform detectors
 robustness + assurance failure evidence
 ```
 
-The term *anti-watermarker* therefore refers to the side of the evaluation the tool represents: it is the adversary attacking watermark durability, not a watermark generator.
+The term *anti-watermarker* refers to the side of the evaluation the tool represents: it is the adversary attacking watermark durability, not a watermark generator.
 
-## Attack workflow
+## Freeze an attack plan
+
+An attack plan can be committed before any artifact is opened or detector runs:
+
+```bash
+defeat-watermarker-attack plan suites/image-platform-v0.1.json
+```
+
+A severity ceiling can select a deterministic prefix of reviewed scenarios:
+
+```bash
+defeat-watermarker-attack plan \
+  suites/image-platform-v0.1.json \
+  --max-severity medium
+```
+
+The output binds the exact suite digest and selected scenario IDs/mutation IDs into a `plan_digest`. This gives an audit trail showing that the attack surface was selected before detector feedback existed. The machine-readable contract is published as [`schemas/attack-plan-v0.1.schema.json`](../schemas/attack-plan-v0.1.schema.json).
+
+## Run an attack
 
 The installed `defeat-watermarker-attack` command is an explicit adversarial alias for the fixed evaluator:
 
@@ -33,7 +51,7 @@ defeat-watermarker-attack asset.jpg \
 
 The command executes the same reviewed, versioned mutation suite as `defeat-watermarker evaluate`. The suite is selected before detector results exist. This makes attack runs reproducible and prevents the experiment from silently changing in response to a detector score.
 
-The checked-in suites already cover attack surfaces such as repeated image recompression, resize/crop, audio level/downmix/resampling, text normalization/editor cleanup, and video scale/transcode. New hostile-but-reproducible processing families can be added as reviewed mutation implementations and immutable suite entries.
+The checked-in suites cover attack surfaces such as repeated image recompression, resize/crop, audio level/downmix/resampling, text normalization/editor cleanup, and video scale/transcode. New hostile-but-reproducible processing families can be added as reviewed mutation implementations and immutable suite entries.
 
 ## Evidence produced by an attack
 
