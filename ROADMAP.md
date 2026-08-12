@@ -47,7 +47,8 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] Machine-readable built-in capability registry
 - [x] Versioned EU Article 50(2) provider-marking engineering profile
 - [x] Capability/modality gap assessment with non-certification disclaimer
+- [x] Fixed labelled-corpus false-positive/false-negative benchmark runner
+- [ ] Representative reviewed reliability corpora for supported detector families
 - [ ] Multi-provider detector adapters behind optional dependencies
 - [ ] Versioned interoperability matrices
-- [ ] False-positive/false-negative reliability benchmark corpus
 - [ ] Regression baselines suitable for release gates

@@ -75,10 +75,10 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
         ),
         ComponentCapability(
             component_id="reliability.false-positive-negative.v1",
-            component_type="planned",
-            available=False,
+            component_type="benchmark",
+            available=True,
             modalities=(Modality.UNKNOWN,),
-            notes="Requires labelled positive/negative corpora and detector-specific operating-point reporting.",
+            notes="Fixed labelled-corpus runner; meaningful claims still require representative reviewed corpora.",
         ),
         ComponentCapability(
             component_id="builtin.container-hints.v1",

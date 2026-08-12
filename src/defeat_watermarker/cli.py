@@ -26,6 +26,7 @@ from .mutations import (
 )
 from .profiles import ProfileError, ReadinessStatus, assess_profile, load_profile
 from .registry import AdapterRegistry
+from .reliability import ReliabilityError, run_reliability_benchmark
 from .suites import SuiteError, load_suite
 
 
@@ -156,6 +157,16 @@ def _assess_profile(path: Path, suite_paths: list[Path]) -> int:
     return 0 if assessment.status is ReadinessStatus.READY else 5
 
 
+def _run_reliability(
+    corpus_path: Path,
+    output: Path | None,
+    c2pa_trust_anchors: Path | None,
+) -> int:
+    report = run_reliability_benchmark(corpus_path, _registry(c2pa_trust_anchors))
+    _emit(report.to_dict(), output)
+    return 0
+
+
 def _evaluate(
     path: Path,
     suite_path: Path,
@@ -254,6 +265,15 @@ def build_parser() -> argparse.ArgumentParser:
     profile_assess.add_argument("path", type=Path)
     profile_assess.add_argument("--suite", type=Path, action="append", default=[])
 
+    benchmark = subparsers.add_parser("benchmark", help="run fixed detector benchmarks")
+    benchmark_subparsers = benchmark.add_subparsers(dest="benchmark_command", required=True)
+    reliability = benchmark_subparsers.add_parser(
+        "reliability", help="evaluate false positives/negatives on a fixed labelled corpus"
+    )
+    reliability.add_argument("corpus", type=Path)
+    reliability.add_argument("--output", type=Path)
+    reliability.add_argument("--c2pa-trust-anchors", type=Path)
+
     evaluate = subparsers.add_parser(
         "evaluate",
         help="run a predefined suite and emit content-addressed evidence",
@@ -291,6 +311,12 @@ def main(argv: list[str] | None = None) -> int:
             return _validate_profile(args.path)
         if args.command == "profile" and args.profile_command == "assess":
             return _assess_profile(args.path, args.suite)
+        if args.command == "benchmark" and args.benchmark_command == "reliability":
+            return _run_reliability(
+                args.corpus,
+                args.output,
+                args.c2pa_trust_anchors,
+            )
         if args.command == "evaluate":
             return _evaluate(
                 args.path,
@@ -308,6 +334,7 @@ def main(argv: list[str] | None = None) -> int:
         UnicodeError,
         EvidenceError,
         ProfileError,
+        ReliabilityError,
         SuiteError,
         ValueError,
         KeyError,
