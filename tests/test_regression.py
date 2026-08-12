@@ -1,3 +1,5 @@
+import pytest
+
 from defeat_watermarker.adapters.base import WatermarkAdapter
 from defeat_watermarker.engine import RobustnessEngine
 from defeat_watermarker.evidence import build_evidence_bundle
@@ -6,7 +8,9 @@ from defeat_watermarker.models import Artifact, DetectionResult, MarkFamily, Mod
 from defeat_watermarker.mutations.base import ArtifactMutation
 from defeat_watermarker.registry import AdapterRegistry
 from defeat_watermarker.regression import (
+    RegressionError,
     RegressionStatus,
+    baseline_from_dict,
     compare_regression,
     create_regression_baseline,
 )
@@ -133,3 +137,29 @@ def test_suite_change_is_indeterminate() -> None:
     report = compare_regression(baseline, current_evidence)
     assert report.status is RegressionStatus.INDETERMINATE
     assert report.suite_match is False
+
+
+def test_baseline_parser_rejects_string_field_type_coercion() -> None:
+    baseline = create_regression_baseline(
+        _evidence(b"fixture-mark keep"),
+        baseline_id="fixture",
+        version="0.1",
+        max_drop=0.0,
+    ).to_dict()
+    baseline["baseline_id"] = 123
+
+    with pytest.raises(RegressionError, match="baseline_id must be text"):
+        baseline_from_dict(baseline)
+
+
+def test_baseline_parser_rejects_digest_type_coercion() -> None:
+    baseline = create_regression_baseline(
+        _evidence(b"fixture-mark keep"),
+        baseline_id="fixture",
+        version="0.1",
+        max_drop=0.0,
+    ).to_dict()
+    baseline["suite_digest"] = 123
+
+    with pytest.raises(RegressionError, match="suite_digest must be text"):
+        baseline_from_dict(baseline)
