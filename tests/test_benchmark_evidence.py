@@ -6,6 +6,7 @@ from pathlib import Path
 from defeat_watermarker.adapters.base import WatermarkAdapter
 from defeat_watermarker.benchmark_evidence import verify_benchmark_document
 from defeat_watermarker.benchmark_verify_cli import main as benchmark_verify_main
+from defeat_watermarker.digests import content_digest
 from defeat_watermarker.interoperability import run_interoperability_matrix
 from defeat_watermarker.models import Artifact, DetectionResult, MarkFamily, Modality
 from defeat_watermarker.registry import AdapterRegistry
@@ -104,12 +105,19 @@ def _interoperability_payload(tmp_path: Path) -> dict[str, object]:
     return report.to_dict()
 
 
+def _rebind_report_id(payload: dict[str, object]) -> None:
+    payload["report_id"] = content_digest(
+        {key: value for key, value in payload.items() if key != "report_id"}
+    )
+
+
 def test_reliability_report_verifies_offline(tmp_path: Path) -> None:
     result = verify_benchmark_document(_reliability_payload(tmp_path))
 
     assert result.valid is True
     assert result.benchmark_type == "reliability"
     assert "report_id" in result.checks
+    assert "summary_semantics" in result.checks
 
 
 def test_reliability_tamper_invalidates_report_id(tmp_path: Path) -> None:
@@ -122,12 +130,32 @@ def test_reliability_tamper_invalidates_report_id(tmp_path: Path) -> None:
     assert any("report_id does not match" in error for error in result.errors)
 
 
+def test_rehashed_inconsistent_reliability_summary_is_rejected(tmp_path: Path) -> None:
+    payload = _reliability_payload(tmp_path)
+    payload["summary"].update(
+        {
+            "true_positive": 0,
+            "false_negative": 1,
+            "accuracy": 0.5,
+            "recall": 0.0,
+            "false_negative_rate": 1.0,
+        }
+    )
+    _rebind_report_id(payload)
+
+    result = verify_benchmark_document(payload)
+
+    assert result.valid is False
+    assert any("counts do not match cases" in error for error in result.errors)
+
+
 def test_interoperability_report_verifies_offline(tmp_path: Path) -> None:
     result = verify_benchmark_document(_interoperability_payload(tmp_path))
 
     assert result.valid is True
     assert result.benchmark_type == "interoperability"
     assert "pairs" in result.checks
+    assert "pair_semantics" in result.checks
 
 
 def test_interoperability_tamper_invalidates_report_id(tmp_path: Path) -> None:
@@ -138,6 +166,25 @@ def test_interoperability_tamper_invalidates_report_id(tmp_path: Path) -> None:
 
     assert result.valid is False
     assert any("report_id does not match" in error for error in result.errors)
+
+
+def test_rehashed_inconsistent_interoperability_pair_is_rejected(tmp_path: Path) -> None:
+    payload = _interoperability_payload(tmp_path)
+    pair = payload["pairs"][0]
+    pair.update(
+        {
+            "detection_agreements": 0,
+            "detection_disagreements": 1,
+            "agreement_rate": 0.0,
+            "both_detected": 0,
+        }
+    )
+    _rebind_report_id(payload)
+
+    result = verify_benchmark_document(payload)
+
+    assert result.valid is False
+    assert any("does not match cases" in error for error in result.errors)
 
 
 def test_benchmark_verifier_cli_accepts_valid_report(tmp_path: Path, capsys) -> None:
