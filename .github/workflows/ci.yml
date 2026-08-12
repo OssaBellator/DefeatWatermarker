@@ -24,8 +24,11 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e '.[dev]'
       - run: pytest
-      - name: Smoke installed anti-watermark CLI
-        run: defeat-watermarker-attack --help
+      - name: Smoke installed anti-watermark CLIs
+        run: |
+          defeat-watermarker-attack --help
+          defeat-watermarker-ui --help
+          defeat-watermarker-ui --list-builtins
 
   c2pa-sdk:
     runs-on: ubuntu-latest
