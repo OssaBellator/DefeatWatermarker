@@ -8,6 +8,22 @@ from .batch import BatchError, run_batch
 from .io_utils import atomic_write_text
 
 
+def _validate_output_dir(input_path: Path, output_dir: Path) -> None:
+    if output_dir.exists() and output_dir.is_symlink():
+        raise BatchError("batch output directory must not be a symlink")
+    if output_dir.exists():
+        if not output_dir.is_dir():
+            raise BatchError("batch output path must be a directory")
+        if any(output_dir.iterdir()):
+            raise BatchError("batch output directory must be empty")
+
+    if input_path.exists() and input_path.is_dir():
+        input_root = input_path.resolve()
+        output_root = output_dir.resolve()
+        if output_root == input_root or output_root.is_relative_to(input_root):
+            raise BatchError("batch output directory must be outside the input tree")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-batch",
@@ -35,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        _validate_output_dir(args.input, args.output_dir)
         result = run_batch(
             args.input,
             recursive=args.recursive,
