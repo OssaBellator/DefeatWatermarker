@@ -35,7 +35,7 @@ def test_scan_report_verifies_and_escapes_artifact_name(tmp_path: Path) -> None:
     artifact = Artifact(
         data=b"private scan bytes",
         media_type="text/plain",
-        name="<script>alert(1)</script>.txt",
+        name="<img src=x onerror=alert(1)>.txt",
         modality=Modality.TEXT,
     )
     scan = build_scan_evidence(artifact, AdapterRegistry([ReportAdapter()]))
@@ -44,8 +44,8 @@ def test_scan_report_verifies_and_escapes_artifact_name(tmp_path: Path) -> None:
 
     rendered = render_report(path)
 
-    assert "&lt;script&gt;alert(1)&lt;/script&gt;.txt" in rendered
-    assert "<script>alert(1)</script>" not in rendered
+    assert "&lt;img src=x onerror=alert(1)&gt;.txt" in rendered
+    assert "<img src=x onerror=alert(1)>" not in rendered
     assert "private scan bytes" not in rendered
     assert scan.scan_id in rendered
 
