@@ -9,6 +9,7 @@ from typing import Any
 from .digests import content_digest, sha256_bytes
 from .models import Artifact, Modality, VerificationState
 from .registry import AdapterRegistry
+from .runtime import adapter_runtime_identity
 
 _MAX_CORPUS_BYTES = 2 * 1024 * 1024
 _MAX_CASES = 1000
@@ -150,9 +151,10 @@ class ReliabilityReport:
     corpus_version: str
     corpus_digest: str
     adapter_id: str
+    adapter_runtime: tuple[str, ...]
     cases: tuple[ReliabilityCaseResult, ...]
     summary: ReliabilitySummary
-    schema_version: str = "0.1"
+    schema_version: str = "0.2"
 
     def core_dict(self) -> dict[str, Any]:
         return {
@@ -161,6 +163,7 @@ class ReliabilityReport:
             "corpus_version": self.corpus_version,
             "corpus_digest": self.corpus_digest,
             "adapter_id": self.adapter_id,
+            "adapter_runtime": list(self.adapter_runtime),
             "cases": [case.to_dict() for case in self.cases],
             "summary": self.summary.to_dict(),
         }
@@ -320,6 +323,7 @@ def run_reliability_benchmark(
         corpus_version=corpus.version,
         corpus_digest=corpus.digest,
         adapter_id=corpus.adapter_id,
+        adapter_runtime=adapter_runtime_identity(adapter),
         cases=frozen,
         summary=_summary(frozen),
     )
