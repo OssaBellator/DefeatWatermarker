@@ -23,6 +23,28 @@ def _emit(payload: dict[str, object], output: Path | None) -> None:
         atomic_write_text(output, rendered)
 
 
+def _paths_alias(left: Path, right: Path) -> bool:
+    try:
+        if left.exists() and right.exists() and left.samefile(right):
+            return True
+    except OSError:
+        pass
+    try:
+        return left.resolve(strict=False) == right.resolve(strict=False)
+    except OSError:
+        return left.absolute() == right.absolute()
+
+
+def _reject_output_alias(output: Path | None, *inputs: Path) -> None:
+    if output is None:
+        return
+    for input_path in inputs:
+        if _paths_alias(output, input_path):
+            raise RegressionError(
+                f"regression output must not overwrite input: {input_path.name}"
+            )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-regression",
@@ -49,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "baseline":
+            _reject_output_alias(args.output, args.evidence)
             evidence = load_evidence_document(args.evidence)
             baseline = create_regression_baseline(
                 evidence,
@@ -59,6 +82,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit({"baseline_digest": baseline.digest, **baseline.to_dict()}, args.output)
             return 0
         if args.command == "check":
+            _reject_output_alias(args.output, args.baseline, args.evidence)
             baseline = load_regression_baseline(args.baseline)
             evidence = load_evidence_document(args.evidence)
             report = compare_regression(baseline, evidence)
