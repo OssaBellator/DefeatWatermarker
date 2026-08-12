@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://defeat-watermarker.local/schemas/local-test-report-v0.3.schema.json",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/local-test-report-v0.3.schema.json",
   "title": "DefeatWatermarker local test report v0.3",
   "type": "object",
   "additionalProperties": false,
