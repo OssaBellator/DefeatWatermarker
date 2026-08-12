@@ -32,7 +32,28 @@ Verify a saved run independently:
 python scripts/test/recorded.py verify .defeat-watermarker/local-test-report.json
 ```
 
-The record binds the selected suite, current Git commit when available, Python runtime and every attempted command/return code. `passed` is recomputed from the recorded steps; a rehashed truncated suite or rehashed report that hides a failed command is rejected.
+Require the report's exact source-tree fingerprint to match the checkout doing the verification:
+
+```bash
+python scripts/test/recorded.py verify \
+  .defeat-watermarker/local-test-report.json \
+  --check-current-tree
+```
+
+The v0.3 record binds:
+
+- the selected fixed local suite;
+- current Git commit when available;
+- whether that Git checkout was dirty at the end of the run;
+- a deterministic fingerprint and file count for the exact repository source tree before the suite starts;
+- whether the source tree changed while tests were running;
+- Python implementation/version;
+- the exact logical step names and argv for the selected suite;
+- every attempted return code.
+
+Generated caches, virtual environments, build/dist output, `.defeat-watermarker/`, Git internals and `*.egg-info` are excluded from the source-tree fingerprint. Symlinked source files/directories are rejected instead of silently hashing content outside the checkout.
+
+`passed` is recomputed from the selected suite, exact step list, return codes and source-tree stability. A rehashed truncated suite, substituted command, hidden failing command or run that modified source files is rejected.
 
 ## Fast/component runs
 
@@ -40,6 +61,7 @@ The record binds the selected suite, current Git commit when available, Python r
 bash scripts/test/preflight.sh
 bash scripts/test/core.sh
 bash scripts/test/cli_smoke.sh
+bash scripts/test/package.sh
 bash scripts/test/conformance.sh
 bash scripts/test/benchmarks.sh
 bash scripts/test/batch.sh
@@ -49,6 +71,8 @@ bash scripts/test/fixtures.sh
 `preflight.sh` rejects reintroduced Actions workflow files, verifies Python/package metadata and public CLI declarations, then byte-compiles the source tree.
 
 `core.sh` runs preflight, pytest and the standalone semantic benchmark regression smoke test.
+
+`package.sh` builds the wheel entirely offline, inspects wheel contents for repository-only paths/private-key markers, installs it into a fresh temporary virtual environment, runs `pip check`, and smoke-tests every public console command.
 
 `conformance.sh` explicitly loads the fixture detector entry point, verifies the read-only/deterministic plugin contract, verifies the content-addressed conformance JSON and renders a static local HTML report.
 
@@ -73,7 +97,7 @@ Optional tests require `cryptography`, `c2pa-python`, Pillow, OpenSSL and FFmpeg
 ## Recorded suite names
 
 - `core`: preflight + pytest + semantic benchmark smoke;
-- `standard`: core plus CLI smoke, detector conformance, provider benchmarks, batch and permanent fixtures;
+- `standard`: core plus CLI smoke, offline wheel packaging, detector conformance, provider benchmarks, batch and permanent fixtures;
 - `optional`: standard plus signing, video and real signed/tampered C2PA tests.
 
 The scripts use temporary directories, do not export transformed media chosen for failed attribution, and retain the project's detector-blind fixed-suite boundary.
