@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/evaluation-evidence-v0.2.schema.json",
+  "title": "DefeatWatermarker evaluation evidence v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evidence_id",
+    "schema_version",
+    "artifact",
+    "suite",
+    "report_digest",
+    "report",
+    "summary",
+    "gate_policy",
+    "gate"
+  ],
+  "properties": {
+    "evidence_id": {"$ref": "#/$defs/sha256"},
+    "schema_version": {"const": "0.2"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "byte_length", "media_type", "name"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 255},
+        "name": {"type": "string", "minLength": 1, "maxLength": 4096}
+      }
+    },
+    "suite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suite_id", "version", "digest"],
+      "properties": {
+        "suite_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "digest": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "report_digest": {"$ref": "#/$defs/sha256"},
+    "report": {"type": "object"},
+    "summary": {"type": "object"},
+    "gate_policy": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "min_survival_rate",
+            "min_verification_survival_rate",
+            "min_trust_survival_rate",
+            "min_provenance_id_preservation_rate",
+            "min_evaluated_comparisons"
+          ],
+          "properties": {
+            "min_survival_rate": {"$ref": "#/$defs/nullableRate"},
+            "min_verification_survival_rate": {"$ref": "#/$defs/nullableRate"},
+            "min_trust_survival_rate": {"$ref": "#/$defs/nullableRate"},
+            "min_provenance_id_preservation_rate": {"$ref": "#/$defs/nullableRate"},
+            "min_evaluated_comparisons": {"type": "integer", "minimum": 1}
+          }
+        }
+      ]
+    },
+    "gate": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": {
+            "status": {"enum": ["pass", "fail", "indeterminate"]},
+            "reason": {"type": "string"}
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nullableRate": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "number", "minimum": 0, "maximum": 1}
+      ]
+    }
+  }
+}
