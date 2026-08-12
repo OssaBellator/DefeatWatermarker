@@ -70,7 +70,8 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             modalities=(Modality.UNKNOWN,),
             notes=(
                 "Content-addressed local validation record binds selected suite, Git commit "
-                "when available, Python runtime and every attempted command/return code."
+                "when available, source-tree fingerprint, Python runtime and every attempted "
+                "command/return code."
             ),
         ),
         ComponentCapability(
@@ -82,6 +83,17 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
                 "Explicit detector-plugin qualification checks read-only capability, stable "
                 "runtime identity, deterministic detection, source immutability and strict "
                 "DetectionResult evidence without loading mutation logic."
+            ),
+        ),
+        ComponentCapability(
+            component_id="regression.fixed-suite-baseline.v1",
+            component_type="regression-gate",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            notes=(
+                "Content-addressed fixed-suite baselines compare survival metrics only when "
+                "suite and detector-runtime digests match; changed experiment conditions are "
+                "reported as indeterminate rather than pass/fail."
             ),
         ),
         ComponentCapability(
