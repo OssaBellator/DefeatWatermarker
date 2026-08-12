@@ -79,11 +79,16 @@ class C2paPythonBackend:
                         payload = json.loads(reader.json())
         except Exception as exc:  # SDK exposes several native-backed exception subclasses.
             message = str(exc)
-            if "ManifestNotFound" in message:
-                raise C2paManifestNotFound("no C2PA manifest found") from exc
-            raise C2paBackendError(f"C2PA verification failed: {message}") from exc
+            lowered = message.lower()
+            if "manifest" in lowered and (
+                "not found" in lowered
+                or "no manifest" in lowered
+                or "manifest_not_found" in lowered
+            ):
+                raise C2paManifestNotFound(message) from exc
+            raise C2paBackendError(message) from exc
         if not isinstance(payload, dict):
-            raise C2paBackendError("C2PA Reader returned a non-object manifest store")
+            raise C2paBackendError("c2pa-python returned a non-object manifest result")
         return payload
 
 
@@ -121,7 +126,22 @@ def _validation_codes(payload: dict[str, Any]) -> tuple[str, ...]:
     return tuple(found)
 
 
+def _active_manifest_has_failure(payload: dict[str, Any]) -> bool:
+    results = payload.get("validation_results")
+    if not isinstance(results, dict):
+        return False
+    active = results.get("activeManifest")
+    if not isinstance(active, dict):
+        return False
+    failures = active.get("failure", [])
+    return isinstance(failures, list) and any(isinstance(item, dict) for item in failures)
+
+
 def _verification_state(payload: dict[str, Any], detected: bool) -> VerificationState:
+    # Treat explicit active-manifest failure evidence as authoritative even if an
+    # upstream payload reports a contradictory Valid/Trusted aggregate state.
+    if _active_manifest_has_failure(payload):
+        return VerificationState.INVALID
     raw = payload.get("validation_state")
     if raw == "Trusted":
         return VerificationState.TRUSTED
