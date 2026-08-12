@@ -167,7 +167,7 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             modalities=(Modality.AUDIO,),
         ),
         ComponentCapability(
-            component_id="audio.wav-pcm16.resample16khz.v1",
+            component_id="audio.wav-pcm16.resample-16khz.v1",
             component_type="mutation",
             available=True,
             modalities=(Modality.AUDIO,),
