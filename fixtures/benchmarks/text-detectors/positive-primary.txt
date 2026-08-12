@@ -1,0 +1,3 @@
+Synthetic labelled positive for DefeatWatermarker reliability regression.
+DefeatWatermarker UI testing
+This is fixture-only text and not a production watermark.
