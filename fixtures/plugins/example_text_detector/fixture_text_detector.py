@@ -15,6 +15,9 @@ class FixtureTextDetector(WatermarkAdapter):
     family = MarkFamily.UNKNOWN
     modalities = frozenset({Modality.TEXT})
 
+    def runtime_identity(self) -> tuple[str, ...]:
+        return ("profile=fixture-primary-v1", "marker-version=1")
+
     def detect(self, artifact: Artifact) -> DetectionResult:
         detected = _PRIMARY_MARKER in artifact.data
         return DetectionResult(
@@ -33,6 +36,9 @@ class FixtureSecondaryTextDetector(WatermarkAdapter):
     adapter_id = "fixture.text-secondary.v1"
     family = MarkFamily.UNKNOWN
     modalities = frozenset({Modality.TEXT})
+
+    def runtime_identity(self) -> tuple[str, ...]:
+        return ("profile=fixture-secondary-v1", "marker-version=1")
 
     def detect(self, artifact: Artifact) -> DetectionResult:
         detected = _SECONDARY_MARKER in artifact.data
