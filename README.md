@@ -1,35 +1,36 @@
 # DefeatWatermarker
 
-DefeatWatermarker is a defensive watermark and provenance robustness lab for evaluating how machine-readable AI provenance signals survive ordinary content transformations.
+DefeatWatermarker is an **anti-watermark red-team harness** for attacking the robustness of AI watermarking and provenance systems.
 
-It is intentionally a **test harness, not a watermark-removal service**. The architecture keeps mutation logic separate from detector feedback, uses predefined/versioned scenarios, and reports robustness results without exporting transformed artifacts.
+It sits on the adversarial side of the test: given an already-marked or provenance-bearing artifact, it runs reviewed hostile/real-world transformations and measures which detection and provenance guarantees survive. It is not a watermark generator.
 
-## Status
+The attack plan is fixed before detector results are produced. That makes results replayable across vendors and watermark versions instead of turning an experiment into a detector-specific optimization loop.
 
-The current implementation provides:
+## What is implemented
 
-- typed artifact, watermark-family, verification-state, detection, and evaluation models;
+The current implementation includes:
+
+- typed artifacts, modalities, watermark families, verification states and bounded detection regions;
 - read-only detector adapters and a machine-readable capability registry;
 - conservative provenance/container hint discovery;
-- optional standards-aware C2PA verification through the official `c2pa-python` Reader;
+- optional C2PA verification through the official `c2pa-python` Reader;
 - explicit C2PA valid/trusted/invalid/error states and custom trust-anchor support;
-- bounded provenance graphs for manifests and ingredients;
-- a bounded soft-binding resolver contract that does not accept raw artifact uploads;
-- a mutation interface with detector-blind transformations;
-- non-destructive control mutations plus a fixed image platform-rendition suite;
-- strict versioned robustness-suite and engineering-profile documents with canonical SHA-256 digests;
-- content-addressed evidence bundles binding artifact hash, suite hash, report hash, summary and gate policy/result;
-- offline evidence self-consistency verification;
-- separate survival metrics for detection, cryptographic verification, trust, and provenance identifiers;
-- CI-style pass/fail/indeterminate gates;
-- an EU Article 50(2) provider-marking engineering-readiness profile that reports gaps rather than legal compliance;
-- JSON-safe reports that contain no artifact or derivative bytes.
-
-The evidence model borrows a core engineering pattern from the companion E2H project: important claims are bound to replayable/versioned inputs and content-addressed observable evidence rather than hidden state. Here, the immutable input is a robustness suite instead of an agent task capsule.
+- bounded manifest/ingredient provenance graphs;
+- bounded soft-binding lookup, manifest retrieval and candidate-only recovery evidence;
+- detector-blind fixed attack mutations for image, audio, video and text;
+- multi-generation image recompression plus resize/crop attacks;
+- PCM-WAV level/downmix/resampling attacks;
+- fixed FFmpeg H.264/AAC transcode and scale/transcode attacks;
+- Unicode, line-ending and editor-cleanup text attacks;
+- strict versioned robustness suites with canonical SHA-256 digests;
+- content-addressed evidence bundles with offline integrity verification;
+- separate survival metrics for detection, cryptographic verification, trust and provenance identifiers;
+- labelled false-positive/false-negative reliability benchmarking;
+- fixed multi-adapter interoperability matrices;
+- regression baselines and CI-style pass/fail/indeterminate gates;
+- an EU Article 50(2) provider-marking engineering-readiness profile that reports gaps rather than legal compliance.
 
 ## Install
-
-Core development environment:
 
 ```bash
 python -m venv .venv
@@ -38,67 +39,79 @@ pip install -e '.[dev]'
 pytest
 ```
 
-Optional runtime extras:
+Optional integrations:
 
 ```bash
 pip install -e '.[c2pa]'   # official C2PA Reader integration
-pip install -e '.[image]'  # fixed image rendition suite
+pip install -e '.[image]'  # Pillow-backed image attack suite
 ```
 
-Inspect the current environment:
+Inspect the current detector and mutation environment:
 
 ```bash
-python -m defeat_watermarker capabilities
+defeat-watermarker capabilities
 ```
 
-## Quick start
+## Anti-watermark attack workflow
+
+`defeat-watermarker-attack` is the adversarial entry point. It is an explicit alias for the fixed evaluator and inherits the same immutable-suite semantics.
 
 ```bash
-python -m defeat_watermarker scan path/to/asset.png --media-type image/png
-python -m defeat_watermarker suite validate suites/control-v0.1.json
-python -m defeat_watermarker suite validate suites/image-platform-v0.1.json
-
-python -m defeat_watermarker evaluate path/to/asset.png \
-  --media-type image/png \
+defeat-watermarker-attack asset.jpg \
+  --media-type image/jpeg \
   --suite suites/image-platform-v0.1.json \
   --output .defeat-watermarker/evidence.json
+```
 
-python -m defeat_watermarker evidence verify \
-  .defeat-watermarker/evidence.json \
+Available checked-in attack suites include:
+
+```text
+suites/image-platform-v0.1.json
+suites/audio-pcm-workflow-v0.1.json
+suites/video-platform-v0.1.json
+suites/text-editorial-v0.1.json
+```
+
+An attack report can show, for example, that a mark remained detectable while its cryptographic provenance became invalid, that trust stopped surviving after a rendition, or that confidence degraded across repeated generations.
+
+The transformed media itself is not emitted by the evaluator. Evidence records derivative hashes/runtime identity so results can be compared without publishing a derivative selected for detector failure.
+
+See [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md) for the threat model.
+
+## General CLI
+
+The normal CLI exposes the lower-level primitives directly:
+
+```bash
+defeat-watermarker scan asset.jpg --media-type image/jpeg
+
+defeat-watermarker suite validate suites/image-platform-v0.1.json
+
+defeat-watermarker evaluate asset.jpg \
+  --media-type image/jpeg \
+  --suite suites/image-platform-v0.1.json \
+  --output evidence.json
+
+defeat-watermarker evidence verify evidence.json \
   --suite suites/image-platform-v0.1.json
 ```
 
 C2PA signer trust can be evaluated against explicit PEM trust anchors:
 
 ```bash
-python -m defeat_watermarker scan asset.jpg \
+defeat-watermarker scan asset.jpg \
   --media-type image/jpeg \
   --c2pa-trust-anchors ./trust-anchors.pem
 ```
 
-Remote C2PA manifest fetching remains disabled by default.
+Remote C2PA manifest fetching remains disabled in the normal verifier unless a separate bounded resolver workflow is explicitly configured.
 
-## EU Article 50 engineering profile
+## CI attack gates
 
-The repository includes a provider-side Article 50(2) **engineering-readiness** profile. It is not a legal compliance checker or certification mechanism.
-
-```bash
-python -m defeat_watermarker profile validate \
-  profiles/eu-article50-provider-marking-v0.1.json
-
-python -m defeat_watermarker profile assess \
-  profiles/eu-article50-provider-marking-v0.1.json \
-  --suite suites/image-platform-v0.1.json
-```
-
-The initial assessment is expected to expose gaps: the repository does not yet have fixed audio/video/text suites, a multi-implementation interoperability matrix, or a labelled false-positive/false-negative reliability corpus. Exit code `5` means engineering gaps remain.
-
-## CI gates
-
-A fixed-suite result can become a CI exit status. Detection and stronger provenance assurances are independent thresholds:
+A fixed attack result can become a CI gate. Detection and stronger provenance assurances are separate thresholds:
 
 ```bash
-python -m defeat_watermarker evaluate asset.jpg \
+defeat-watermarker-attack asset.jpg \
   --media-type image/jpeg \
   --suite suites/image-platform-v0.1.json \
   --min-survival-rate 1.0 \
@@ -107,23 +120,45 @@ python -m defeat_watermarker evaluate asset.jpg \
   --min-provenance-id-preservation-rate 1.0
 ```
 
-Exit code `2` means at least one requested threshold failed; `3` means a requested metric was indeterminate because there were not enough eligible baseline comparisons. A passing engineering gate is not a legal compliance certification.
+Exit code `2` means a requested threshold failed. Exit code `3` means a requested metric was indeterminate because there were not enough eligible baseline comparisons.
 
-## Content-addressed evaluation model
+## EU Article 50 engineering profile
 
-A suite has a canonical digest independent of JSON formatting. Evaluation produces an evidence bundle containing:
+The repository includes a provider-side Article 50(2) **engineering-readiness** profile. It is an engineering aid, not legal certification.
 
-- SHA-256 and byte length of the input artifact, but not its bytes;
-- suite ID, version, and canonical digest;
-- report digest and structured detector comparisons;
-- aggregate robustness/assurance metrics;
-- any requested gate policy and gate result;
-- a deterministic evidence ID covering the complete bundle core.
+```bash
+defeat-watermarker profile validate \
+  profiles/eu-article50-provider-marking-v0.1.json
 
-This lets CI, auditors, and future registries verify that two reports refer to the same asset and exact test suite without retaining transformed media. `evidence verify` checks those bindings offline.
+defeat-watermarker profile assess \
+  profiles/eu-article50-provider-marking-v0.1.json \
+  --suite suites/image-platform-v0.1.json \
+  --suite suites/audio-pcm-workflow-v0.1.json \
+  --suite suites/video-platform-v0.1.json \
+  --suite suites/text-editorial-v0.1.json
+```
+
+The profile is intentionally capable of remaining non-ready even when all modalities have suites; representative interoperability and reliability evidence are independent requirements.
+
+## Evidence model
+
+Evaluation evidence binds:
+
+- SHA-256 and byte length of the source artifact, but not its bytes;
+- the exact versioned attack suite and canonical suite digest;
+- detector and mutation runtime identities;
+- derivative SHA-256/length/media type, but not derivative bytes;
+- baseline/post-attack detector evidence;
+- detection, verification, trust and provenance-continuity metrics;
+- requested gate policy/result;
+- a deterministic evidence ID over the full evidence core.
+
+This makes anti-watermark experiments reproducible and auditable without turning the result channel into a cleaned-media export mechanism.
 
 ## Design boundary
 
-The core does not implement adaptive optimization against detectors, detector-gradient access, detector-guided mutation selection, or a `remove watermark` operation. Mutation implementations are selected before results are produced and only receive an artifact plus a predefined scenario. Evaluation reports expose evidence and confidence/assurance changes, not derivative artifact bytes.
+The project is adversarial, but the core does not implement detector-gradient access, detector-guided mutation selection, adaptive optimization until a detector fails, or a `remove watermark` operation. Mutation implementations receive the artifact and a predefined scenario, not detector feedback. Reports expose robustness failures and assurance changes rather than a derivative selected because attribution was defeated.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
+This boundary is intentional: fixed hostile attacks can be replayed across implementations and used to improve marking robustness, while adaptive stripping/evasion would instead turn the framework into provenance-bypass tooling.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
