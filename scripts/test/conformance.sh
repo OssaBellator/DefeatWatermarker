@@ -24,8 +24,11 @@ assert payload['adapter_id'] == 'fixture.text-marker.v1'
 assert len(payload['report_id']) == 64
 required={
     'runtime_identity',
+    'runtime_identity_stable',
     'read_only_capability',
+    'capabilities_deterministic',
     'supports_artifact',
+    'supports_deterministic',
     'adapter_id_match',
     'family_match',
     'deterministic_detection',
