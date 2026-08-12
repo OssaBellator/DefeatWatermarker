@@ -23,6 +23,7 @@ SUITES = {
         ("pytest", (sys.executable, "-m", "pytest", "-q")),
         ("benchmark-regression", (sys.executable, "scripts/test/benchmark_regression.py")),
         ("cli-smoke", ("bash", "scripts/test/cli_smoke.sh")),
+        ("package-wheel", ("bash", "scripts/test/package.sh")),
         ("detector-conformance", ("bash", "scripts/test/conformance.sh")),
         ("benchmarks", ("bash", "scripts/test/benchmarks.sh")),
         ("batch", ("bash", "scripts/test/batch.sh")),
