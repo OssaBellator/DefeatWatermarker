@@ -9,13 +9,13 @@ from typing import Any
 
 from .builtin_suites import builtin_suite_catalog, builtin_suite_for
 from .cli import _infer_modality, _mutations, _registry
-from .detector_plugins import discover_detector_plugins, load_detector_plugins
-from .digests import content_digest, sha256_bytes
+from .detector_plugins import discover_detector_plugins
 from .engine import RobustnessEngine
 from .evidence import build_evidence_bundle
 from .io_utils import atomic_write_text, read_bounded_bytes
 from .metrics import RobustnessSummary, summarize_report
 from .models import Artifact, DetectionResult, EvaluationReport
+from .scan_evidence import build_scan_evidence
 from .suites import RobustnessSuite, load_suite
 
 
@@ -149,32 +149,6 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
-def _detect_baseline(artifact: Artifact, registry) -> tuple[DetectionResult, ...]:
-    return tuple(
-        adapter.detect(artifact)
-        for adapter in registry
-        if adapter.supports(artifact)
-    )
-
-
-def _scan_document(
-    artifact: Artifact,
-    results: tuple[DetectionResult, ...],
-) -> dict[str, Any]:
-    core = {
-        "schema_version": "0.1",
-        "artifact": {
-            "name": artifact.name,
-            "sha256": sha256_bytes(artifact.data),
-            "byte_length": len(artifact.data),
-            "media_type": artifact.media_type,
-            "modality": artifact.modality.value,
-        },
-        "results": [item.to_dict() for item in results],
-    }
-    return {"scan_id": content_digest(core), **core}
-
-
 def _run(
     artifact_path: Path,
     media_type: str,
@@ -191,9 +165,7 @@ def _run(
         name=artifact_path.name,
         modality=_infer_modality(media_type),
     )
-    registry = _registry(trust_anchors)
-    for adapter in load_detector_plugins(detector_plugins):
-        registry.register(adapter)
+    registry = _registry(trust_anchors, detector_plugins)
 
     suite: RobustnessSuite | None = None
     if not scan_only:
@@ -202,20 +174,19 @@ def _run(
     _print_header(artifact, suite)
 
     if scan_only or suite is None:
-        baseline = _detect_baseline(artifact, registry)
+        scan = build_scan_evidence(artifact, registry)
         print("\nDetector/model output")
         print("---------------------")
-        print(_baseline_table(baseline))
+        print(_baseline_table(scan.results))
         if not scan_only and suite is None:
             print(
                 "\nNo built-in attack suite exists for this modality; showing detector output only. "
                 "Pass --suite PATH to run a custom fixed suite."
             )
         if json_output is not None:
-            scan_document = _scan_document(artifact, baseline)
-            _write_json(json_output, scan_document)
+            _write_json(json_output, scan.to_dict())
             print(f"Full JSON scan result: {json_output}")
-            print(f"Scan ID: {scan_document['scan_id']}")
+            print(f"Scan ID: {scan.scan_id}")
         return 0
 
     engine = RobustnessEngine(registry, _mutations())
