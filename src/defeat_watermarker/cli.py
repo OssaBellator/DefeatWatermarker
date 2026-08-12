@@ -5,8 +5,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .adapters.c2pa import C2paPythonBackend, C2paVerifierAdapter
+from .adapters.c2pa import C2paPythonBackend, C2paTrustPolicy, C2paVerifierAdapter
 from .adapters.metadata import ContainerHintAdapter
+from .capabilities import capability_document
 from .engine import RobustnessEngine
 from .evidence import build_evidence_bundle
 from .metrics import GatePolicy, apply_gate, summarize_report
@@ -29,6 +30,7 @@ def _infer_modality(media_type: str) -> Modality:
         "video": Modality.VIDEO,
         "audio": Modality.AUDIO,
         "text": Modality.TEXT,
+        "application": Modality.DOCUMENT if media_type == "application/pdf" else Modality.UNKNOWN,
     }.get(prefix, Modality.UNKNOWN)
 
 
@@ -41,10 +43,33 @@ def _emit(payload: dict[str, Any], output: Path | None) -> None:
         output.write_text(rendered, encoding="utf-8")
 
 
-def _registry() -> AdapterRegistry:
+def _load_trust_anchors(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    data = path.read_text(encoding="utf-8")
+    if "-----BEGIN CERTIFICATE-----" not in data:
+        raise ValueError("C2PA trust-anchor file does not contain a PEM certificate")
+    return data
+
+
+def _registry(trust_anchors_path: Path | None = None) -> AdapterRegistry:
     adapters = [ContainerHintAdapter()]
+    anchors = _load_trust_anchors(trust_anchors_path)
     if C2paPythonBackend.available():
-        adapters.append(C2paVerifierAdapter())
+        adapters.append(
+            C2paVerifierAdapter(
+                policy=C2paTrustPolicy(
+                    trust_anchors_pem=anchors,
+                    verify_cert_anchors=anchors is not None,
+                    remote_manifest_fetch=False,
+                )
+            )
+        )
+    elif anchors is not None:
+        raise ValueError(
+            "C2PA trust anchors were supplied but c2pa-python is not installed; "
+            "install defeat-watermarker[c2pa]"
+        )
     return AdapterRegistry(adapters)
 
 
@@ -59,14 +84,23 @@ def _mutations():
     ]
 
 
-def _scan(path: Path, media_type: str, output: Path | None) -> int:
+def _scan(
+    path: Path,
+    media_type: str,
+    output: Path | None,
+    c2pa_trust_anchors: Path | None,
+) -> int:
     artifact = Artifact(
         data=path.read_bytes(),
         media_type=media_type,
         name=path.name,
         modality=_infer_modality(media_type),
     )
-    results = [adapter.detect(artifact).to_dict() for adapter in _registry() if adapter.supports(artifact)]
+    results = [
+        adapter.detect(artifact).to_dict()
+        for adapter in _registry(c2pa_trust_anchors)
+        if adapter.supports(artifact)
+    ]
     _emit({"artifact_name": artifact.name, "results": results}, output)
     return 0
 
@@ -91,6 +125,7 @@ def _evaluate(
     suite_path: Path,
     media_type: str,
     output: Path | None,
+    c2pa_trust_anchors: Path | None,
     min_survival_rate: float | None,
     min_verification_survival_rate: float | None,
     min_trust_survival_rate: float | None,
@@ -103,7 +138,7 @@ def _evaluate(
         name=path.name,
         modality=_infer_modality(media_type),
     )
-    engine = RobustnessEngine(_registry(), _mutations())
+    engine = RobustnessEngine(_registry(c2pa_trust_anchors), _mutations())
     report = engine.evaluate(artifact, suite.scenarios)
     summary = summarize_report(report)
     evidence = build_evidence_bundle(artifact, suite, report, summary)
@@ -143,10 +178,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    subparsers.add_parser(
+        "capabilities", help="show built-in adapters/mutations and optional dependency state"
+    )
+
     scan = subparsers.add_parser("scan", help="inspect an artifact for known provenance hints")
     scan.add_argument("path", type=Path)
     scan.add_argument("--media-type", default="application/octet-stream")
     scan.add_argument("--output", type=Path)
+    scan.add_argument("--c2pa-trust-anchors", type=Path)
 
     suite = subparsers.add_parser("suite", help="work with immutable robustness suites")
     suite_subparsers = suite.add_subparsers(dest="suite_command", required=True)
@@ -161,6 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--suite", type=Path, required=True)
     evaluate.add_argument("--media-type", default="application/octet-stream")
     evaluate.add_argument("--output", type=Path)
+    evaluate.add_argument("--c2pa-trust-anchors", type=Path)
     evaluate.add_argument("--min-survival-rate", type=float)
     evaluate.add_argument("--min-verification-survival-rate", type=float)
     evaluate.add_argument("--min-trust-survival-rate", type=float)
@@ -171,8 +212,16 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "capabilities":
+            _emit(capability_document(), None)
+            return 0
         if args.command == "scan":
-            return _scan(args.path, args.media_type, args.output)
+            return _scan(
+                args.path,
+                args.media_type,
+                args.output,
+                args.c2pa_trust_anchors,
+            )
         if args.command == "suite" and args.suite_command == "validate":
             return _validate_suite(args.path)
         if args.command == "evaluate":
@@ -181,12 +230,13 @@ def main(argv: list[str] | None = None) -> int:
                 args.suite,
                 args.media_type,
                 args.output,
+                args.c2pa_trust_anchors,
                 args.min_survival_rate,
                 args.min_verification_survival_rate,
                 args.min_trust_survival_rate,
                 args.min_provenance_id_preservation_rate,
             )
-    except (OSError, SuiteError, ValueError, KeyError) as exc:
+    except (OSError, UnicodeError, SuiteError, ValueError, KeyError) as exc:
         parser.error(str(exc))
     raise AssertionError("unreachable")
 

@@ -10,6 +10,22 @@ permissions:
 
 jobs:
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - run: pytest
+
+  c2pa-sdk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,5 +34,8 @@ jobs:
           python-version: '3.11'
           cache: pip
       - run: python -m pip install --upgrade pip
-      - run: pip install -e '.[dev]'
-      - run: pytest
+      - run: pip install -e '.[c2pa]'
+      - name: Verify official SDK is discoverable
+        run: >-
+          python -c "from defeat_watermarker.adapters.c2pa import C2paPythonBackend;
+          assert C2paPythonBackend.available()"
