@@ -21,7 +21,7 @@ jobs:
           version: '0.12.3'
           enable-cache: false
       - name: Resolve dependency graph at fixed release horizon
-        run: uv lock --all-extras
+        run: uv lock
       - name: Assert lockfile is self-consistent
         run: uv lock --check
       - name: Export CycloneDX dependency inventory
