@@ -46,7 +46,7 @@ def runtime_identity(self):
     )
 ```
 
-DefeatWatermarker prefixes these values with `adapter-runtime=` and binds them into scan, attack, batch and benchmark evidence. This makes a detector-model/configuration change visible to regression baselines instead of silently comparing unlike experiments.
+DefeatWatermarker prefixes these values with `adapter-runtime=` and binds them into scan, attack, batch, benchmark and detector-conformance evidence. This makes a detector-model/configuration change visible to regression baselines instead of silently comparing unlike experiments.
 
 The hook is intentionally small and descriptive: at most eight non-empty single-line strings, each at most 256 characters. Invalid, over-limit or failing runtime identity hooks abort evidence generation rather than being silently omitted. Do not expose keys, model weights, gradients, detector locations or other secrets through this hook.
 
@@ -56,6 +56,24 @@ Example package metadata:
 [project.entry-points."defeat_watermarker.detectors"]
 provider-text-v1 = "provider_detector:ProviderTextDetector"
 ```
+
+## Conformance qualification
+
+Before using a provider detector in robustness benchmarks, run the detector-only conformance command against a representative fixed artifact:
+
+```bash
+defeat-watermarker-detector-conformance run \
+  artifact.txt \
+  --media-type text/plain \
+  --detector-plugin provider-text-v1 \
+  --output conformance.json
+
+defeat-watermarker-detector-conformance verify conformance.json
+```
+
+A passing report proves the adapter surface is read-only, the supplied modality is supported, result identity/family match the adapter, repeated detection over identical bytes is deterministic, source bytes remain unchanged, runtime identity is stable/bounded, and the emitted detection evidence has the strict `DetectionResult` shape.
+
+The conformance runner contains no mutation registry and no detector-guided content modification path. See [`DETECTOR_CONFORMANCE.md`](DETECTOR_CONFORMANCE.md).
 
 ## Trust boundary
 
@@ -69,4 +87,4 @@ Detector adapters also do not receive mutation objects, mutation selection state
 
 `fixtures/plugins/example_text_detector` is a separately packaged synthetic detector used to test the extension seam. It recognizes deterministic markers in the checked-in text fixtures and publishes explicit fixture profile identifiers through `runtime_identity()`. It is not a production text watermark detector.
 
-The local test runners under `scripts/test/` explicitly install/enable that fixture plugin, verify its fixed editorial-normalization behavior, benchmark it against labelled cases, and bind its package plus runtime profile into the resulting evidence. GitHub Actions is intentionally disabled on the current feature branch while hosted-runner quota is unavailable.
+The local test runners under `scripts/test/` explicitly install/enable that fixture plugin, qualify it with `scripts/test/conformance.sh`, verify its fixed editorial-normalization behavior, benchmark it against labelled cases, and bind its package plus runtime profile into the resulting evidence. GitHub Actions is intentionally disabled on the current feature branch while hosted-runner quota is unavailable.
