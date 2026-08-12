@@ -22,7 +22,7 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] Detection and provenance-assurance survival summaries
 - [x] CI-style gates
 - [x] Built-in control suite
-- [ ] Detached signed evidence manifests
+- [x] Detached signed evidence manifests with offline Ed25519 verification
 - [ ] Golden fixtures for every supported detector family
 
 ## M2 — Standards-aware provenance
