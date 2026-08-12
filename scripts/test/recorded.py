@@ -12,16 +12,17 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = "0.1"
+_PYTHON = "{python}"
 SUITES = {
     "core": (
         ("preflight", ("bash", "scripts/test/preflight.sh")),
-        ("pytest", (sys.executable, "-m", "pytest", "-q")),
-        ("benchmark-regression", (sys.executable, "scripts/test/benchmark_regression.py")),
+        ("pytest", (_PYTHON, "-m", "pytest", "-q")),
+        ("benchmark-regression", (_PYTHON, "scripts/test/benchmark_regression.py")),
     ),
     "standard": (
         ("preflight", ("bash", "scripts/test/preflight.sh")),
-        ("pytest", (sys.executable, "-m", "pytest", "-q")),
-        ("benchmark-regression", (sys.executable, "scripts/test/benchmark_regression.py")),
+        ("pytest", (_PYTHON, "-m", "pytest", "-q")),
+        ("benchmark-regression", (_PYTHON, "scripts/test/benchmark_regression.py")),
         ("cli-smoke", ("bash", "scripts/test/cli_smoke.sh")),
         ("package-wheel", ("bash", "scripts/test/package.sh")),
         ("detector-conformance", ("bash", "scripts/test/conformance.sh")),
@@ -42,6 +43,12 @@ def content_digest(value: Any) -> str:
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _resolve_command(command: tuple[str, ...]) -> tuple[str, ...]:
+    if command and command[0] == _PYTHON:
+        return (sys.executable, *command[1:])
+    return command
 
 
 def git_commit() -> str | None:
@@ -66,7 +73,8 @@ def git_commit() -> str | None:
 
 def run_suite(suite: str) -> dict[str, Any]:
     steps: list[dict[str, Any]] = []
-    for name, command in SUITES[suite]:
+    for name, logical_command in SUITES[suite]:
+        command = _resolve_command(logical_command)
         print(f"\n==> {name}: {' '.join(command)}", flush=True)
         try:
             completed = subprocess.run(command, cwd=ROOT, check=False)
@@ -77,7 +85,7 @@ def run_suite(suite: str) -> dict[str, Any]:
         steps.append(
             {
                 "name": name,
-                "command": list(command),
+                "command": list(logical_command),
                 "return_code": return_code,
             }
         )
@@ -99,6 +107,10 @@ def run_suite(suite: str) -> dict[str, Any]:
         ),
     }
     return {"report_id": content_digest(core), **core}
+
+
+def _expected_steps(suite: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    return SUITES[suite]
 
 
 def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
@@ -171,6 +183,21 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
                 errors.append(f"step {index} command is invalid")
             if type(step["return_code"]) is not int:
                 errors.append(f"step {index} return_code is invalid")
+
+    if steps and suite in SUITES:
+        expected = _expected_steps(suite)
+        if len(steps) > len(expected):
+            errors.append("recorded steps exceed selected suite")
+        for index, step in enumerate(steps[: len(expected)]):
+            expected_name, expected_command = expected[index]
+            if step.get("name") != expected_name:
+                errors.append(
+                    f"step {index} name does not match selected suite"
+                )
+            if step.get("command") != list(expected_command):
+                errors.append(
+                    f"step {index} command does not match selected suite"
+                )
 
     passed = payload.get("passed")
     if type(passed) is not bool:
