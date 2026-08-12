@@ -12,6 +12,28 @@ _MAX_CASES = 1000
 _MAX_RUNTIME_ITEMS = 16
 _MAX_RUNTIME_ITEM_LENGTH = 512
 
+_RELIABILITY_FIELDS = {
+    "report_id",
+    "schema_version",
+    "corpus_id",
+    "corpus_version",
+    "corpus_digest",
+    "adapter_id",
+    "adapter_runtime",
+    "cases",
+    "summary",
+}
+_INTEROPERABILITY_FIELDS = {
+    "report_id",
+    "schema_version",
+    "matrix_id",
+    "matrix_version",
+    "matrix_digest",
+    "adapter_runtime",
+    "cases",
+    "pairs",
+}
+
 
 class BenchmarkEvidenceError(ValueError):
     """Raised when benchmark evidence is malformed or exceeds bounded limits."""
@@ -46,20 +68,47 @@ def _looks_like_sha256(value: Any) -> bool:
 def _runtime_list_valid(value: Any) -> bool:
     return (
         isinstance(value, list)
-        and len(value) <= _MAX_RUNTIME_ITEMS
+        and 1 <= len(value) <= _MAX_RUNTIME_ITEMS
         and all(
-            isinstance(item, str) and len(item) <= _MAX_RUNTIME_ITEM_LENGTH
+            isinstance(item, str) and 0 < len(item) <= _MAX_RUNTIME_ITEM_LENGTH
             for item in value
         )
     )
 
 
 def _benchmark_type(payload: dict[str, Any]) -> str | None:
-    if "corpus_id" in payload and "summary" in payload and "adapter_id" in payload:
+    keys = set(payload)
+    if keys == _RELIABILITY_FIELDS:
         return "reliability"
-    if "matrix_id" in payload and "pairs" in payload and "adapter_runtime" in payload:
+    if keys == _INTEROPERABILITY_FIELDS:
+        return "interoperability"
+    if "corpus_id" in payload or "summary" in payload:
+        return "reliability"
+    if "matrix_id" in payload or "pairs" in payload:
         return "interoperability"
     return None
+
+
+def _check_exact_fields(
+    payload: dict[str, Any], expected: set[str], noun: str, errors: list[str]
+) -> bool:
+    keys = set(payload)
+    missing = sorted(expected - keys)
+    extras = sorted(keys - expected)
+    if missing:
+        errors.append(f"{noun} missing fields: {', '.join(missing)}")
+    if extras:
+        errors.append(f"{noun} has unknown fields: {', '.join(extras)}")
+    return not missing and not extras
+
+
+def _check_cases(cases: Any, errors: list[str], checks: list[str]) -> None:
+    if not isinstance(cases, list) or not 1 <= len(cases) <= _MAX_CASES:
+        errors.append(f"cases must contain 1..{_MAX_CASES} entries")
+    elif any(not isinstance(case, dict) for case in cases):
+        errors.append("cases must contain objects")
+    else:
+        checks.append("cases")
 
 
 def verify_benchmark_document(payload: dict[str, Any]) -> BenchmarkVerificationResult:
@@ -74,6 +123,15 @@ def verify_benchmark_document(payload: dict[str, Any]) -> BenchmarkVerificationR
             checks=(),
             errors=("document is not a recognized reliability/interoperability report",),
         )
+
+    expected_fields = (
+        _RELIABILITY_FIELDS if benchmark_type == "reliability" else _INTEROPERABILITY_FIELDS
+    )
+    exact_fields = _check_exact_fields(
+        payload, expected_fields, f"{benchmark_type} report", errors
+    )
+    if exact_fields:
+        checks.append("fields")
 
     report_id = payload.get("report_id")
     if not _looks_like_sha256(report_id):
@@ -90,41 +148,80 @@ def verify_benchmark_document(payload: dict[str, Any]) -> BenchmarkVerificationR
     else:
         checks.append("schema_version")
 
-    cases = payload.get("cases")
-    if not isinstance(cases, list) or not 1 <= len(cases) <= _MAX_CASES:
-        errors.append(f"cases must contain 1..{_MAX_CASES} entries")
-    elif any(not isinstance(case, dict) for case in cases):
-        errors.append("cases must contain objects")
-    else:
-        checks.append("cases")
-
+    _check_cases(payload.get("cases"), errors, checks)
     runtime = payload.get("adapter_runtime")
+
     if benchmark_type == "reliability":
+        for field in ("corpus_id", "corpus_version", "adapter_id"):
+            value = payload.get(field)
+            if not isinstance(value, str) or not value:
+                errors.append(f"{field} must be a non-empty string")
+        if not _looks_like_sha256(payload.get("corpus_digest")):
+            errors.append("corpus_digest is not a lowercase SHA-256 digest")
+        else:
+            checks.append("corpus_digest")
+
         if not _runtime_list_valid(runtime):
-            errors.append("adapter_runtime must be a bounded string array")
+            errors.append("adapter_runtime must be a bounded non-empty string array")
         else:
             checks.append("adapter_runtime")
+
         summary = payload.get("summary")
-        if not isinstance(summary, dict):
-            errors.append("summary must be an object")
+        required_summary = {
+            "true_positive",
+            "true_negative",
+            "false_positive",
+            "false_negative",
+            "accuracy",
+            "precision",
+            "recall",
+            "specificity",
+            "false_positive_rate",
+            "false_negative_rate",
+        }
+        if not isinstance(summary, dict) or set(summary) != required_summary:
+            errors.append("reliability summary has invalid fields")
         else:
-            required_counts = {
-                "true_positive",
-                "true_negative",
-                "false_positive",
-                "false_negative",
+            counts = (
+                summary["true_positive"],
+                summary["true_negative"],
+                summary["false_positive"],
+                summary["false_negative"],
+            )
+            if any(type(value) is not int or value < 0 for value in counts):
+                errors.append("reliability confusion-matrix counts must be non-negative integers")
+            rate_names = (
                 "accuracy",
                 "precision",
                 "recall",
                 "specificity",
                 "false_positive_rate",
                 "false_negative_rate",
-            }
-            if set(summary) != required_counts:
-                errors.append("reliability summary has invalid fields")
+            )
+            invalid_rate = False
+            for name in rate_names:
+                value = summary[name]
+                if value is not None and (
+                    not isinstance(value, (int, float))
+                    or isinstance(value, bool)
+                    or not 0.0 <= float(value) <= 1.0
+                ):
+                    invalid_rate = True
+                    break
+            if invalid_rate:
+                errors.append("reliability rates must be null or between 0 and 1")
             else:
                 checks.append("summary")
     else:
+        for field in ("matrix_id", "matrix_version"):
+            value = payload.get(field)
+            if not isinstance(value, str) or not value:
+                errors.append(f"{field} must be a non-empty string")
+        if not _looks_like_sha256(payload.get("matrix_digest")):
+            errors.append("matrix_digest is not a lowercase SHA-256 digest")
+        else:
+            checks.append("matrix_digest")
+
         if not isinstance(runtime, dict) or not runtime:
             errors.append("adapter_runtime must be a non-empty object")
         elif any(
@@ -136,6 +233,7 @@ def verify_benchmark_document(payload: dict[str, Any]) -> BenchmarkVerificationR
             errors.append("adapter_runtime contains invalid runtime identities")
         else:
             checks.append("adapter_runtime")
+
         pairs = payload.get("pairs")
         if not isinstance(pairs, list) or not pairs:
             errors.append("pairs must be a non-empty array")
