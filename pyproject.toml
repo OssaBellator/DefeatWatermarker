@@ -25,6 +25,7 @@ defeat-watermarker-ui = "defeat_watermarker.ui_cli:main"
 defeat-watermarker-scan-verify = "defeat_watermarker.scan_cli:main"
 defeat-watermarker-batch = "defeat_watermarker.batch_cli:main"
 defeat-watermarker-batch-verify = "defeat_watermarker.batch_verify_cli:main"
+defeat-watermarker-report = "defeat_watermarker.report_cli:main"
 
 [tool.uv]
 exclude-newer = "2026-08-12T10:45:00Z"
