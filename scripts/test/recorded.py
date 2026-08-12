@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_VERSION = "0.1"
+SCHEMA_VERSION = "0.2"
 _PYTHON = "{python}"
 SUITES = {
     "core": (
@@ -51,9 +51,9 @@ def _resolve_command(command: tuple[str, ...]) -> tuple[str, ...]:
     return command
 
 
-def git_commit() -> str | None:
+def git_state() -> tuple[str | None, bool | None]:
     try:
-        result = subprocess.run(
+        commit_result = subprocess.run(
             ("git", "rev-parse", "HEAD"),
             cwd=ROOT,
             check=True,
@@ -61,14 +61,24 @@ def git_commit() -> str | None:
             text=True,
         )
     except (OSError, subprocess.CalledProcessError):
-        return None
-    value = result.stdout.strip()
-    return (
-        value
-        if len(value) == 40
-        and all(character in "0123456789abcdef" for character in value)
-        else None
-    )
+        return None, None
+    commit = commit_result.stdout.strip()
+    if not (
+        len(commit) == 40
+        and all(character in "0123456789abcdef" for character in commit)
+    ):
+        return None, None
+    try:
+        status_result = subprocess.run(
+            ("git", "status", "--porcelain", "--untracked-files=normal"),
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return commit, None
+    return commit, bool(status_result.stdout.strip())
 
 
 def run_suite(suite: str) -> dict[str, Any]:
@@ -92,11 +102,13 @@ def run_suite(suite: str) -> dict[str, Any]:
         if return_code != 0:
             break
 
+    commit, dirty = git_state()
     all_expected_steps_ran = len(steps) == len(SUITES[suite])
     core = {
         "schema_version": SCHEMA_VERSION,
         "suite": suite,
-        "git_commit": git_commit(),
+        "git_commit": commit,
+        "git_dirty": dirty,
         "python_version": platform.python_version(),
         "python_implementation": platform.python_implementation(),
         "steps": steps,
@@ -109,10 +121,6 @@ def run_suite(suite: str) -> dict[str, Any]:
     return {"report_id": content_digest(core), **core}
 
 
-def _expected_steps(suite: str) -> tuple[tuple[str, tuple[str, ...]], ...]:
-    return SUITES[suite]
-
-
 def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
     errors: list[str] = []
     required = {
@@ -120,6 +128,7 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
         "schema_version",
         "suite",
         "git_commit",
+        "git_dirty",
         "python_version",
         "python_implementation",
         "steps",
@@ -153,6 +162,11 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
         or any(character not in "0123456789abcdef" for character in commit)
     ):
         errors.append("git_commit is invalid")
+    dirty = payload.get("git_dirty")
+    if dirty is not None and type(dirty) is not bool:
+        errors.append("git_dirty must be boolean or null")
+    if commit is None and dirty is not None:
+        errors.append("git_dirty must be null when git_commit is unavailable")
 
     for field in ("python_version", "python_implementation"):
         if not isinstance(payload.get(field), str) or not payload[field]:
@@ -185,7 +199,7 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
                 errors.append(f"step {index} return_code is invalid")
 
     if steps and suite in SUITES:
-        expected = _expected_steps(suite)
+        expected = SUITES[suite]
         if len(steps) > len(expected):
             errors.append("recorded steps exceed selected suite")
         for index, step in enumerate(steps[: len(expected)]):
