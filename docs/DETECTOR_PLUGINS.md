@@ -35,6 +35,21 @@ An entry point must resolve to one of:
 
 Each adapter provides a stable `adapter_id`, watermark/provenance family, supported modalities and a read-only `detect(Artifact) -> DetectionResult` implementation.
 
+A provider may also expose an optional no-argument `runtime_identity()` method returning a bounded iterable of short strings. Use it for experiment-critical configuration that package/class identity alone does not capture, for example:
+
+```python
+def runtime_identity(self):
+    return (
+        "model=checkpoint-2026-08-12",
+        "threshold-profile=balanced-v2",
+        "key-profile=provider-keyset-4",
+    )
+```
+
+DefeatWatermarker prefixes these values with `adapter-runtime=` and binds them into scan, attack, batch and benchmark evidence. This makes a detector-model/configuration change visible to regression baselines instead of silently comparing unlike experiments.
+
+The hook is intentionally small and descriptive: at most eight non-empty single-line strings, each at most 256 characters. Invalid, over-limit or failing runtime identity hooks abort evidence generation rather than being silently omitted. Do not expose keys, model weights, gradients, detector locations or other secrets through this hook.
+
 Example package metadata:
 
 ```toml
@@ -52,6 +67,6 @@ Detector adapters also do not receive mutation objects, mutation selection state
 
 ## Regression fixture
 
-`fixtures/plugins/example_text_detector` is a separately packaged synthetic detector used to test the extension seam. It recognizes a deterministic marker in `fixtures/retests/example_text.txt` and is labelled as fixture-only in its detector warning. It is not a production text watermark detector.
+`fixtures/plugins/example_text_detector` is a separately packaged synthetic detector used to test the extension seam. It recognizes deterministic markers in the checked-in text fixtures and publishes explicit fixture profile identifiers through `runtime_identity()`. It is not a production text watermark detector.
 
-CI explicitly installs and enables that fixture plugin, verifies that it survives the fixed editorial-normalization suite, and keeps the emitted evidence bundle as a workflow artifact.
+The local test runners under `scripts/test/` explicitly install/enable that fixture plugin, verify its fixed editorial-normalization behavior, benchmark it against labelled cases, and bind its package plus runtime profile into the resulting evidence. GitHub Actions is intentionally disabled on the current feature branch while hosted-runner quota is unavailable.
