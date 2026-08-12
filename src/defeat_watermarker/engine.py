@@ -15,6 +15,7 @@ from .models import (
 )
 from .mutations.base import ArtifactMutation
 from .registry import AdapterRegistry
+from .runtime import adapter_runtime_identity
 
 
 class RobustnessEngine:
@@ -52,6 +53,21 @@ class RobustnessEngine:
             if adapter.supports(artifact)
         )
 
+    def _adapter_runtime(
+        self, artifact: Artifact
+    ) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        identities: list[tuple[str, tuple[str, ...]]] = []
+        for adapter in self.registry:
+            if not adapter.supports(artifact):
+                continue
+            identity = tuple(adapter_runtime_identity(adapter))
+            if len(identity) > 16 or any(len(item) > 512 for item in identity):
+                raise ValueError(
+                    f"adapter {adapter.adapter_id} returned unbounded runtime identity"
+                )
+            identities.append((adapter.adapter_id, identity))
+        return tuple(identities)
+
     @staticmethod
     def _validate_scenario_modality(artifact: Artifact, scenario: MutationScenario) -> None:
         if (
@@ -74,6 +90,7 @@ class RobustnessEngine:
         if len(selected) > self.max_scenarios:
             raise ValueError(f"scenario count exceeds max_scenarios={self.max_scenarios}")
 
+        adapter_runtime = self._adapter_runtime(artifact)
         baseline = self._detect(artifact)
         baseline_by_adapter = {item.adapter_id: item for item in baseline}
         evaluations: list[ScenarioEvaluation] = []
@@ -121,4 +138,5 @@ class RobustnessEngine:
             media_type=artifact.media_type,
             baseline=baseline,
             scenarios=tuple(evaluations),
+            adapter_runtime=adapter_runtime,
         )
