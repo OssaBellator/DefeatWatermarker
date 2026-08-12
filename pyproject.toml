@@ -15,11 +15,15 @@ dependencies = []
 [project.optional-dependencies]
 c2pa = ["c2pa-python>=0.33,<1"]
 image = ["Pillow>=12.3,<13"]
+signing = ["cryptography>=46,<47"]
 dev = ["pytest>=8,<9", "Pillow>=12.3,<13"]
 
 [project.scripts]
 defeat-watermarker = "defeat_watermarker.cli:main"
 defeat-watermarker-attack = "defeat_watermarker.attack_cli:main"
+
+[tool.uv]
+exclude-newer = "2026-08-12T10:45:00Z"
 
 [tool.setuptools.packages.find]
 where = ["src"]
