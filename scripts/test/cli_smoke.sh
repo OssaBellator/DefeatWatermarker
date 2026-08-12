@@ -11,6 +11,7 @@ for command in \
   defeat-watermarker-benchmark-verify \
   defeat-watermarker-benchmark-baseline \
   defeat-watermarker-detector-conformance \
+  defeat-watermarker-evidence-signature \
   defeat-watermarker-report; do
   dwm_require_cmd "$command"
   "$command" --help >/dev/null
