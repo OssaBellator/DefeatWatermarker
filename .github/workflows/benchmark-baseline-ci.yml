@@ -1,0 +1,57 @@
+name: Benchmark Baseline CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  comparison-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]' -e fixtures/plugins/example_text_detector
+      - name: Generate verified fixture reliability report
+        run: >-
+          defeat-watermarker benchmark reliability
+          fixtures/benchmarks/text-detectors/reliability-v0.1.json
+          --detector-plugin fixture-text
+          --output /tmp/reliability.json
+      - run: defeat-watermarker-benchmark-verify /tmp/reliability.json
+      - name: Create baseline and comparison evidence
+        run: |
+          defeat-watermarker-benchmark-baseline create /tmp/reliability.json --output /tmp/baseline.json
+          defeat-watermarker-benchmark-baseline compare /tmp/reliability.json --baseline /tmp/baseline.json --output /tmp/comparison.json
+      - name: Verify comparison evidence
+        run: defeat-watermarker-benchmark-baseline verify-comparison /tmp/comparison.json
+      - name: Assert comparison content-addressing
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from defeat_watermarker.digests import content_digest
+
+          payload = json.loads(Path('/tmp/comparison.json').read_text(encoding='utf-8'))
+          assert payload['schema_version'] == '0.1'
+          assert payload['status'] == 'same_or_better'
+          assert payload['changes'] == []
+          comparison_id = payload.pop('comparison_id')
+          assert content_digest(payload) == comparison_id
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-comparison-evidence
+          path: |
+            /tmp/reliability.json
+            /tmp/baseline.json
+            /tmp/comparison.json
+          if-no-files-found: error
+          retention-days: 14
