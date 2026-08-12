@@ -59,12 +59,11 @@ def _keys(tmp_path: Path) -> tuple[Path, Path]:
     return private_path, public_path
 
 
-def test_signature_cli_sign_and_verify_round_trip(tmp_path: Path, capsys) -> None:
+def _signed_fixture(tmp_path: Path) -> tuple[Path, Path, Path, dict[str, object]]:
     evidence_path = tmp_path / "evidence.json"
     evidence_path.write_text(json.dumps(_evidence()), encoding="utf-8")
     private_path, public_path = _keys(tmp_path)
     signature_path = tmp_path / "signature.json"
-
     assert main(
         [
             "sign",
@@ -77,9 +76,13 @@ def test_signature_cli_sign_and_verify_round_trip(tmp_path: Path, capsys) -> Non
             str(signature_path),
         ]
     ) == 0
-    assert capsys.readouterr().out == ""
-
     payload = json.loads(signature_path.read_text(encoding="utf-8"))
+    return evidence_path, public_path, signature_path, payload
+
+
+def test_signature_cli_sign_and_verify_round_trip(tmp_path: Path, capsys) -> None:
+    evidence_path, public_path, signature_path, payload = _signed_fixture(tmp_path)
+    assert capsys.readouterr().out == ""
     assert payload["algorithm"] == "ed25519"
     assert payload["key_id"] == "local-release-test"
     assert "PRIVATE KEY" not in repr(payload)
@@ -123,24 +126,9 @@ def test_signature_cli_sign_can_emit_detached_document_to_stdout(
 def test_signature_cli_wrong_public_key_returns_verification_failure(
     tmp_path: Path, capsys
 ) -> None:
-    evidence_path = tmp_path / "evidence.json"
-    evidence_path.write_text(json.dumps(_evidence()), encoding="utf-8")
-    private_path, _ = _keys(tmp_path / "signer")
+    evidence_path, _, signature_path, _ = _signed_fixture(tmp_path / "signed")
+    capsys.readouterr()
     _, wrong_public = _keys(tmp_path / "other")
-    signature_path = tmp_path / "signature.json"
-
-    assert main(
-        [
-            "sign",
-            str(evidence_path),
-            "--private-key",
-            str(private_path),
-            "--key-id",
-            "local-release-test",
-            "--output",
-            str(signature_path),
-        ]
-    ) == 0
 
     assert main(
         [
@@ -202,3 +190,33 @@ def test_signature_cli_refuses_to_overwrite_evidence(tmp_path: Path) -> None:
 
     assert exc_info.value.code == 2
     assert evidence_path.read_bytes() == original
+
+
+@pytest.mark.parametrize("target", ["evidence", "signature", "public_key"])
+def test_signature_cli_verify_refuses_to_overwrite_inputs(
+    tmp_path: Path, capsys, target: str
+) -> None:
+    evidence_path, public_path, signature_path, _ = _signed_fixture(tmp_path)
+    capsys.readouterr()
+    paths = {
+        "evidence": evidence_path,
+        "signature": signature_path,
+        "public_key": public_path,
+    }
+    before = paths[target].read_bytes()
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "verify",
+                str(evidence_path),
+                str(signature_path),
+                "--public-key",
+                str(public_path),
+                "--output",
+                str(paths[target]),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert paths[target].read_bytes() == before
