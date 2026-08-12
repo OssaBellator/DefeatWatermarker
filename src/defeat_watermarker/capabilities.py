@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from dataclasses import dataclass
 from typing import Any
 
@@ -35,6 +36,7 @@ class ComponentCapability:
 def builtin_capabilities() -> tuple[ComponentCapability, ...]:
     image_available = pillow_available()
     c2pa_available = C2paPythonBackend.available()
+    signing_available = importlib.util.find_spec("cryptography") is not None
     video_available = ffmpeg_available()
     return (
         ComponentCapability(
@@ -49,6 +51,17 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             component_type="framework",
             available=True,
             modalities=(Modality.UNKNOWN,),
+        ),
+        ComponentCapability(
+            component_id="evidence.signature.ed25519.v1",
+            component_type="framework",
+            available=signing_available,
+            modalities=(Modality.UNKNOWN,),
+            optional_extra="signing",
+            notes=(
+                "Detached Ed25519 signature over a verified evaluation evidence ID; "
+                "private-key bytes are never serialized into signature evidence."
+            ),
         ),
         ComponentCapability(
             component_id="evidence.local-test-run.v1",
@@ -133,6 +146,17 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             family=MarkFamily.SIGNED_PROVENANCE,
             optional_extra="c2pa",
             notes="Official c2pa-python Reader; remote manifest fetching disabled by default.",
+        ),
+        ComponentCapability(
+            component_id="c2pa.manifest-fetch.bounded.v1",
+            component_type="resolver-client",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            family=MarkFamily.SIGNED_PROVENANCE,
+            notes=(
+                "Explicit HTTPS allowlist, no redirects or proxies, strict application/c2pa "
+                "responses, timeout and response-byte ceilings; fetched bytes remain private."
+            ),
         ),
         ComponentCapability(
             component_id="soft-binding.resolver-interface.v1",
