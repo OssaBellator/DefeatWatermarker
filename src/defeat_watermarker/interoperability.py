@@ -10,6 +10,7 @@ from typing import Any
 from .digests import content_digest, sha256_bytes
 from .models import Artifact, MarkFamily, Modality, VerificationState
 from .registry import AdapterRegistry
+from .runtime import adapter_runtime_identity
 
 _MAX_MATRIX_BYTES = 2 * 1024 * 1024
 _MAX_CASES = 500
@@ -169,9 +170,10 @@ class InteroperabilityReport:
     matrix_id: str
     matrix_version: str
     matrix_digest: str
+    adapter_runtime: tuple[tuple[str, tuple[str, ...]], ...]
     cases: tuple[InteroperabilityCaseResult, ...]
     pairs: tuple[PairwiseAgreement, ...]
-    schema_version: str = "0.1"
+    schema_version: str = "0.2"
 
     def core_dict(self) -> dict[str, Any]:
         return {
@@ -179,6 +181,10 @@ class InteroperabilityReport:
             "matrix_id": self.matrix_id,
             "matrix_version": self.matrix_version,
             "matrix_digest": self.matrix_digest,
+            "adapter_runtime": {
+                adapter_id: list(identity)
+                for adapter_id, identity in self.adapter_runtime
+            },
             "cases": [case.to_dict() for case in self.cases],
             "pairs": [pair.to_dict() for pair in self.pairs],
         }
@@ -369,6 +375,10 @@ def run_interoperability_matrix(
         matrix_id=matrix.matrix_id,
         matrix_version=matrix.version,
         matrix_digest=matrix.digest,
+        adapter_runtime=tuple(
+            (adapter_id, adapter_runtime_identity(adapters[adapter_id]))
+            for adapter_id in matrix.adapter_ids
+        ),
         cases=frozen,
         pairs=_pairwise(matrix.adapter_ids, frozen),
     )
