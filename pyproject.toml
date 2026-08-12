@@ -28,6 +28,7 @@ defeat-watermarker-batch-verify = "defeat_watermarker.batch_verify_cli:main"
 defeat-watermarker-benchmark-verify = "defeat_watermarker.benchmark_verify_cli:main"
 defeat-watermarker-benchmark-baseline = "defeat_watermarker.benchmark_baseline_cli:main"
 defeat-watermarker-detector-conformance = "defeat_watermarker.detector_conformance_cli:main"
+defeat-watermarker-regression = "defeat_watermarker.regression_cli:main"
 defeat-watermarker-signature = "defeat_watermarker.signature_cli:main"
 defeat-watermarker-report = "defeat_watermarker.report_cli:main"
 
