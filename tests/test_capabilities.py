@@ -10,7 +10,24 @@ def test_capability_document_has_stable_component_ids() -> None:
     assert "c2pa.reader.v1" in ids
     assert "image.jpeg-reencode.q85.v1" in ids
     assert "audio.wav-pcm16.resample-16khz.v1" in ids
+    assert "detector.conformance.read-only.v1" in ids
+    assert "evidence.local-test-run.v1" in ids
     assert payload["plugin_loading"] == "explicit_opt_in"
+
+
+def test_new_local_framework_capabilities_are_available_and_detector_blind() -> None:
+    payload = capability_document()
+    by_id = {item["component_id"]: item for item in payload["components"]}
+
+    conformance = by_id["detector.conformance.read-only.v1"]
+    assert conformance["available"] is True
+    assert conformance["component_type"] == "framework"
+    assert "without loading mutation logic" in conformance["notes"]
+
+    local_tests = by_id["evidence.local-test-run.v1"]
+    assert local_tests["available"] is True
+    assert local_tests["component_type"] == "framework"
+    assert "command/return code" in local_tests["notes"]
 
 
 def test_capability_document_discovers_plugins_without_loading(monkeypatch) -> None:
