@@ -12,6 +12,9 @@ from .base import WatermarkAdapter
 
 _MAX_VALIDATION_CODES = 2048
 _MAX_CODE_LENGTH = 256
+_C2PA_CLAIM_SIGNING_EKU = "1.3.6.1.4.1.62558.2.1"
+_DOCUMENT_SIGNING_EKU = "1.3.6.1.5.5.7.3.36"
+_DEFAULT_TRUST_CONFIG = f"{_DOCUMENT_SIGNING_EKU}\n{_C2PA_CLAIM_SIGNING_EKU}\n"
 
 
 class C2paBackendError(RuntimeError):
@@ -29,19 +32,27 @@ class C2paTrustPolicy:
     trust_anchors_pem: str | None = None
     verify_cert_anchors: bool = False
     remote_manifest_fetch: bool = False
+    trust_config: str | None = None
 
     def __post_init__(self) -> None:
         if self.verify_cert_anchors and not self.trust_anchors_pem:
             raise ValueError("verify_cert_anchors requires trust_anchors_pem")
+        if self.trust_config is not None and not self.trust_config.strip():
+            raise ValueError("trust_config must be non-empty when supplied")
 
     def to_settings(self) -> dict[str, Any]:
-        verify: dict[str, Any] = {
-            "remote_manifest_fetch": self.remote_manifest_fetch,
-            "verify_cert_anchors": self.verify_cert_anchors,
+        payload: dict[str, Any] = {
+            "verify": {
+                "remote_manifest_fetch": self.remote_manifest_fetch,
+            }
         }
-        payload: dict[str, Any] = {"verify": verify}
         if self.trust_anchors_pem is not None:
-            payload["trust"] = {"trust_anchors": self.trust_anchors_pem}
+            payload["trust"] = {
+                "user_anchors": self.trust_anchors_pem,
+                "trust_config": self.trust_config or _DEFAULT_TRUST_CONFIG,
+            }
+        elif self.trust_config is not None:
+            payload["trust"] = {"trust_config": self.trust_config}
         return payload
 
 
