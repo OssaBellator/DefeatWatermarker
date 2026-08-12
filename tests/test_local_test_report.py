@@ -13,10 +13,13 @@ SPEC.loader.exec_module(RECORDED)
 
 def _report() -> dict[str, object]:
     core = {
-        "schema_version": "0.2",
+        "schema_version": "0.3",
         "suite": "core",
         "git_commit": None,
         "git_dirty": None,
+        "source_tree_digest": "d" * 64,
+        "source_tree_file_count": 42,
+        "source_tree_changed": False,
         "python_version": "3.13.5",
         "python_implementation": "CPython",
         "steps": [
@@ -62,7 +65,7 @@ def test_rehashed_false_pass_is_rejected() -> None:
     valid, errors = RECORDED.verify_report(payload)
 
     assert valid is False
-    assert "passed does not match recorded step outcomes" in errors
+    assert "passed does not match recorded step/source outcomes" in errors
 
 
 def test_truncated_successful_suite_is_rejected() -> None:
@@ -73,7 +76,7 @@ def test_truncated_successful_suite_is_rejected() -> None:
     valid, errors = RECORDED.verify_report(payload)
 
     assert valid is False
-    assert "passed does not match recorded step outcomes" in errors
+    assert "passed does not match recorded step/source outcomes" in errors
 
 
 def test_rehashed_substituted_successful_command_is_rejected() -> None:
@@ -119,3 +122,42 @@ def test_git_dirty_must_be_boolean_or_null() -> None:
 
     assert valid is False
     assert "git_dirty must be boolean or null" in errors
+
+
+def test_rehashed_source_tree_change_cannot_claim_pass() -> None:
+    payload = _report()
+    payload["source_tree_changed"] = True
+    _rebind(payload)
+
+    valid, errors = RECORDED.verify_report(payload)
+
+    assert valid is False
+    assert "passed does not match recorded step/source outcomes" in errors
+
+
+def test_current_tree_check_accepts_matching_fingerprint(monkeypatch) -> None:
+    payload = _report()
+    monkeypatch.setattr(
+        RECORDED,
+        "source_tree_state",
+        lambda: (payload["source_tree_digest"], payload["source_tree_file_count"]),
+    )
+
+    valid, errors = RECORDED.verify_report(payload, check_current_tree=True)
+
+    assert valid is True
+    assert errors == []
+
+
+def test_current_tree_check_rejects_different_fingerprint(monkeypatch) -> None:
+    payload = _report()
+    monkeypatch.setattr(
+        RECORDED,
+        "source_tree_state",
+        lambda: ("e" * 64, payload["source_tree_file_count"]),
+    )
+
+    valid, errors = RECORDED.verify_report(payload, check_current_tree=True)
+
+    assert valid is False
+    assert "current source tree does not match recorded source tree" in errors
