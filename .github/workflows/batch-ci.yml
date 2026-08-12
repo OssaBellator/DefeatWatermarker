@@ -33,7 +33,11 @@ jobs:
           --output-dir /tmp/defeat-watermarker-attack-batch
       - name: Verify mixed attack/scan batch offline
         run: defeat-watermarker-batch-verify /tmp/defeat-watermarker-attack-batch
-      - name: Assert mixed-modality batch shapes
+      - name: Render verified batch as static HTML
+        run: >-
+          defeat-watermarker-report /tmp/defeat-watermarker-attack-batch
+          --output /tmp/defeat-watermarker-attack-report.html
+      - name: Assert mixed-modality batch shapes and report boundary
         run: |
           python - <<'PY'
           import json
@@ -45,6 +49,7 @@ jobs:
           attack = json.loads(
               Path('/tmp/defeat-watermarker-attack-batch/batch.json').read_text(encoding='utf-8')
           )
+          report = Path('/tmp/defeat-watermarker-attack-report.html').read_text(encoding='utf-8')
           assert len(scan['records']) == 4  # README + text + image + unknown fixture
           assert all(item['mode'] == 'scan' for item in scan['records'])
           assert all(item['record_id'] for item in scan['records'])
@@ -55,6 +60,12 @@ jobs:
           assert modes['example_text.txt'] == 'attack'
           assert modes['example_unknown.bin'] == 'scan'
           assert all(item['record_id'] for item in attack['records'])
+
+          assert '<!doctype html>' in report
+          assert 'DefeatWatermarker batch report' in report
+          assert '<script' not in report
+          assert 'http://' not in report
+          assert 'https://' not in report
           PY
       - uses: actions/upload-artifact@v4
         with:
@@ -62,5 +73,6 @@ jobs:
           path: |
             /tmp/defeat-watermarker-scan-batch
             /tmp/defeat-watermarker-attack-batch
+            /tmp/defeat-watermarker-attack-report.html
           if-no-files-found: error
           retention-days: 14
