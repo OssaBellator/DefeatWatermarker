@@ -11,6 +11,12 @@ from .benchmark_baseline import (
     compare_benchmark_to_baseline,
     create_benchmark_baseline,
 )
+from .benchmark_comparison import (
+    BenchmarkComparisonError,
+    from_comparison,
+    load_comparison_document,
+    verify_comparison_document,
+)
 from .benchmark_evidence import BenchmarkEvidenceError, load_benchmark_document
 from .io_utils import atomic_write_text
 
@@ -19,7 +25,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-benchmark-baseline",
         description=(
-            "Create or compare runtime-aware content-addressed benchmark regression baselines."
+            "Create, compare, and verify runtime-aware content-addressed benchmark "
+            "regression baselines."
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
@@ -32,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("report", type=Path)
     compare.add_argument("--baseline", type=Path, required=True)
     compare.add_argument("--output", type=Path)
+
+    verify = sub.add_parser(
+        "verify-comparison",
+        help="verify content-addressed benchmark comparison evidence",
+    )
+    verify.add_argument("comparison", type=Path)
     return parser
 
 
@@ -49,6 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "verify-comparison":
+            result = verify_comparison_document(load_comparison_document(args.comparison))
+            print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+            return 0 if result.valid else 4
+
         report = load_benchmark_document(args.report)
         if args.command == "create":
             baseline = create_benchmark_baseline(report)
@@ -62,7 +80,8 @@ def main(argv: list[str] | None = None) -> int:
 
         baseline = _load_baseline(args.baseline)
         comparison = compare_benchmark_to_baseline(report, baseline)
-        rendered = json.dumps(comparison.to_dict(), indent=2, sort_keys=True) + "\n"
+        evidence = from_comparison(comparison)
+        rendered = json.dumps(evidence.to_dict(), indent=2, sort_keys=True) + "\n"
         if args.output is None:
             print(rendered, end="")
         else:
@@ -76,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         OSError,
         UnicodeError,
         BenchmarkBaselineError,
+        BenchmarkComparisonError,
         BenchmarkEvidenceError,
         ValueError,
     ) as exc:
