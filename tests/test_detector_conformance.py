@@ -70,6 +70,12 @@ def _artifact() -> Artifact:
     )
 
 
+def _rebind(payload: dict[str, object]) -> None:
+    payload["report_id"] = content_digest(
+        {key: value for key, value in payload.items() if key != "report_id"}
+    )
+
+
 def test_read_only_deterministic_adapter_passes_conformance() -> None:
     report = run_detector_conformance("fixture-good", GoodAdapter(), _artifact())
     verification = verify_conformance_document(report.to_dict())
@@ -114,11 +120,22 @@ def test_rehashed_false_pass_missing_required_check_is_rejected() -> None:
         "fixture-good", GoodAdapter(), _artifact()
     ).to_dict()
     payload["checks"].remove("deterministic_detection")
-    payload["report_id"] = content_digest(
-        {key: value for key, value in payload.items() if key != "report_id"}
-    )
+    _rebind(payload)
 
     verification = verify_conformance_document(payload)
 
     assert verification.valid is False
     assert any("missing required checks" in error for error in verification.errors)
+
+
+def test_rehashed_detection_with_unknown_field_is_rejected() -> None:
+    payload = run_detector_conformance(
+        "fixture-good", GoodAdapter(), _artifact()
+    ).to_dict()
+    payload["detection"]["unexpected"] = "unbound-extension"
+    _rebind(payload)
+
+    verification = verify_conformance_document(payload)
+
+    assert verification.valid is False
+    assert any("detection evidence has invalid fields" in error for error in verification.errors)
