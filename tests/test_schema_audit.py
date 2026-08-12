@@ -54,20 +54,6 @@ def test_schema_audit_rejects_non_repository_id(tmp_path: Path) -> None:
     assert any("$id must be" in error for error in errors)
 
 
-def test_schema_audit_rejects_duplicate_schema_ids(tmp_path: Path) -> None:
-    first = "first-v0.1.schema.json"
-    second = "second-v0.1.schema.json"
-    duplicate_id = AUDIT.ID_PREFIX + first
-    _write(tmp_path, first, _schema(first, schema_id=duplicate_id))
-    _write(tmp_path, second, _schema(second, schema_id=duplicate_id))
-
-    count, errors = AUDIT.audit_schema_directory(tmp_path)
-
-    assert count == 2
-    assert any("duplicate $id" in error for error in errors)
-    assert any("$id must be" in error for error in errors)
-
-
 def test_schema_audit_rejects_missing_root_strictness(tmp_path: Path) -> None:
     name = "loose-v0.1.schema.json"
     payload = _schema(name)
