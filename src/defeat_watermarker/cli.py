@@ -15,6 +15,7 @@ from .evidence import (
     load_evidence_document,
     verify_evidence_document,
 )
+from .io_utils import atomic_write_text, read_bounded_bytes
 from .metrics import GatePolicy, GateStatus, apply_gate, summarize_report
 from .models import Artifact, Modality
 from .mutations import (
@@ -28,6 +29,8 @@ from .profiles import ProfileError, ReadinessStatus, assess_profile, load_profil
 from .registry import AdapterRegistry
 from .reliability import ReliabilityError, run_reliability_benchmark
 from .suites import SuiteError, load_suite
+
+_MAX_TRUST_ANCHOR_BYTES = 1024 * 1024
 
 
 def _infer_modality(media_type: str) -> Modality:
@@ -46,14 +49,16 @@ def _emit(payload: dict[str, Any], output: Path | None) -> None:
     if output is None:
         print(rendered, end="")
     else:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(rendered, encoding="utf-8")
+        atomic_write_text(output, rendered)
 
 
 def _load_trust_anchors(path: Path | None) -> str | None:
     if path is None:
         return None
-    data = path.read_text(encoding="utf-8")
+    try:
+        data = read_bounded_bytes(path, max_bytes=_MAX_TRUST_ANCHOR_BYTES).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("C2PA trust-anchor file must be UTF-8 PEM text") from exc
     if "-----BEGIN CERTIFICATE-----" not in data:
         raise ValueError("C2PA trust-anchor file does not contain a PEM certificate")
     return data
@@ -97,7 +102,7 @@ def _scan(
     c2pa_trust_anchors: Path | None,
 ) -> int:
     artifact = Artifact(
-        data=path.read_bytes(),
+        data=read_bounded_bytes(path),
         media_type=media_type,
         name=path.name,
         modality=_infer_modality(media_type),
@@ -180,7 +185,7 @@ def _evaluate(
 ) -> int:
     suite = load_suite(suite_path)
     artifact = Artifact(
-        data=path.read_bytes(),
+        data=read_bounded_bytes(path),
         media_type=media_type,
         name=path.name,
         modality=_infer_modality(media_type),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from .io_utils import DEFAULT_MAX_ARTIFACT_BYTES
 from .models import (
     Artifact,
     DetectionComparison,
@@ -24,16 +25,24 @@ class RobustnessEngine:
         mutations: Iterable[ArtifactMutation],
         *,
         max_scenarios: int = 64,
+        max_artifact_bytes: int = DEFAULT_MAX_ARTIFACT_BYTES,
     ) -> None:
         if max_scenarios < 1:
             raise ValueError("max_scenarios must be positive")
+        if max_artifact_bytes < 1:
+            raise ValueError("max_artifact_bytes must be positive")
         self.registry = registry
         self.max_scenarios = max_scenarios
+        self.max_artifact_bytes = max_artifact_bytes
         self._mutations: dict[str, ArtifactMutation] = {}
         for mutation in mutations:
             if mutation.mutation_id in self._mutations:
                 raise ValueError(f"duplicate mutation_id: {mutation.mutation_id}")
             self._mutations[mutation.mutation_id] = mutation
+
+    def _check_size(self, artifact: Artifact, *, noun: str) -> None:
+        if len(artifact.data) > self.max_artifact_bytes:
+            raise ValueError(f"{noun} exceeds max_artifact_bytes={self.max_artifact_bytes}")
 
     def _detect(self, artifact: Artifact) -> tuple[DetectionResult, ...]:
         return tuple(
@@ -59,6 +68,7 @@ class RobustnessEngine:
         artifact: Artifact,
         scenarios: Iterable[MutationScenario],
     ) -> EvaluationReport:
+        self._check_size(artifact, noun="source artifact")
         selected = tuple(scenarios)
         if len(selected) > self.max_scenarios:
             raise ValueError(f"scenario count exceeds max_scenarios={self.max_scenarios}")
@@ -75,8 +85,12 @@ class RobustnessEngine:
                 raise KeyError(f"unknown predefined mutation: {scenario.mutation_id}")
 
             derivative = artifact
-            for _ in range(scenario.generation_count):
+            for generation in range(scenario.generation_count):
                 derivative = mutation.apply(derivative, scenario)
+                self._check_size(
+                    derivative,
+                    noun=f"scenario {scenario.scenario_id} generation {generation + 1} derivative",
+                )
 
             after = self._detect(derivative)
             comparisons = tuple(
