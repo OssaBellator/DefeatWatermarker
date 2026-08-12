@@ -105,8 +105,14 @@ def _metrics(payload: dict[str, Any], benchmark_type: str) -> dict[str, Any]:
 
 def create_benchmark_baseline(payload: dict[str, Any]) -> BenchmarkBaseline:
     verification = verify_benchmark_document(payload)
-    if not verification.valid or verification.report_id is None or verification.benchmark_type is None:
-        raise BenchmarkBaselineError("benchmark report must verify before it can become a baseline")
+    if (
+        not verification.valid
+        or verification.report_id is None
+        or verification.benchmark_type is None
+    ):
+        raise BenchmarkBaselineError(
+            "benchmark report must verify before it can become a baseline"
+        )
     return BenchmarkBaseline(
         benchmark_type=verification.benchmark_type,
         source_report_id=verification.report_id,
@@ -114,6 +120,77 @@ def create_benchmark_baseline(payload: dict[str, Any]) -> BenchmarkBaseline:
         runtime_digest=_runtime_digest(payload),
         metrics=_metrics(payload, verification.benchmark_type),
     )
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _rate_or_none(value: Any) -> bool:
+    return value is None or (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0.0 <= float(value) <= 1.0
+    )
+
+
+def _validate_metrics(benchmark_type: str, metrics: Any) -> None:
+    if not isinstance(metrics, dict):
+        raise BenchmarkBaselineError("benchmark baseline metrics must be an object")
+    if benchmark_type == "reliability":
+        expected = {
+            "accuracy",
+            "precision",
+            "recall",
+            "specificity",
+            "false_positive_rate",
+            "false_negative_rate",
+            "case_count",
+        }
+        if (
+            set(metrics) != expected
+            or type(metrics["case_count"]) is not int
+            or metrics["case_count"] < 1
+        ):
+            raise BenchmarkBaselineError("reliability baseline metrics are malformed")
+        if any(
+            not _rate_or_none(metrics[name])
+            for name in expected - {"case_count"}
+        ):
+            raise BenchmarkBaselineError("reliability baseline rates are malformed")
+        return
+
+    if (
+        set(metrics) != {"case_count", "pairs"}
+        or type(metrics["case_count"]) is not int
+        or metrics["case_count"] < 1
+    ):
+        raise BenchmarkBaselineError("interoperability baseline metrics are malformed")
+    pairs = metrics["pairs"]
+    if not isinstance(pairs, dict) or not pairs:
+        raise BenchmarkBaselineError("interoperability baseline pairs are malformed")
+    for pair_id, pair in pairs.items():
+        if (
+            not isinstance(pair_id, str)
+            or not pair_id
+            or not isinstance(pair, dict)
+            or set(pair) != {"comparable_cases", "agreement_rate"}
+        ):
+            raise BenchmarkBaselineError(
+                "interoperability baseline pair metrics are malformed"
+            )
+        if (
+            type(pair["comparable_cases"]) is not int
+            or pair["comparable_cases"] < 0
+            or not _rate_or_none(pair["agreement_rate"])
+        ):
+            raise BenchmarkBaselineError(
+                "interoperability baseline pair values are malformed"
+            )
 
 
 def baseline_from_dict(payload: dict[str, Any]) -> BenchmarkBaseline:
@@ -133,25 +210,27 @@ def baseline_from_dict(payload: dict[str, Any]) -> BenchmarkBaseline:
     benchmark_type = payload.get("benchmark_type")
     if benchmark_type not in {"reliability", "interoperability"}:
         raise BenchmarkBaselineError("benchmark baseline has invalid benchmark_type")
-    for field in ("baseline_id", "source_report_id", "input_digest", "runtime_digest"):
-        value = payload.get(field)
-        if not isinstance(value, str) or len(value) != 64 or any(
-            character not in "0123456789abcdef" for character in value
-        ):
+    for field in (
+        "baseline_id",
+        "source_report_id",
+        "input_digest",
+        "runtime_digest",
+    ):
+        if not _is_sha256(payload.get(field)):
             raise BenchmarkBaselineError(f"benchmark baseline has invalid {field}")
-    metrics = payload.get("metrics")
-    if not isinstance(metrics, dict):
-        raise BenchmarkBaselineError("benchmark baseline metrics must be an object")
+    _validate_metrics(benchmark_type, payload.get("metrics"))
     baseline = BenchmarkBaseline(
         benchmark_type=benchmark_type,
         source_report_id=payload["source_report_id"],
         input_digest=payload["input_digest"],
         runtime_digest=payload["runtime_digest"],
-        metrics=metrics,
+        metrics=payload["metrics"],
         schema_version="0.1",
     )
     if baseline.baseline_id != payload["baseline_id"]:
-        raise BenchmarkBaselineError("baseline_id does not match benchmark baseline core")
+        raise BenchmarkBaselineError(
+            "baseline_id does not match benchmark baseline core"
+        )
     return baseline
 
 
@@ -165,19 +244,29 @@ def _rate_change(
     if baseline_value is None and current_value is None:
         return None
     if baseline_value is None or current_value is None:
-        return f"{name} comparability changed ({baseline_value!r} -> {current_value!r})"
+        return (
+            f"{name} comparability changed "
+            f"({baseline_value!r} -> {current_value!r})"
+        )
     baseline_rate = float(baseline_value)
     current_rate = float(current_value)
     if higher_is_better:
         if current_rate + _RATE_TOLERANCE < baseline_rate:
-            return f"{name} regressed ({baseline_rate:.6f} -> {current_rate:.6f})"
+            return (
+                f"{name} regressed "
+                f"({baseline_rate:.6f} -> {current_rate:.6f})"
+            )
     elif current_rate > baseline_rate + _RATE_TOLERANCE:
-        return f"{name} regressed ({baseline_rate:.6f} -> {current_rate:.6f})"
+        return (
+            f"{name} regressed "
+            f"({baseline_rate:.6f} -> {current_rate:.6f})"
+        )
     return None
 
 
 def _compare_reliability(
-    baseline_metrics: dict[str, Any], current_metrics: dict[str, Any]
+    baseline_metrics: dict[str, Any],
+    current_metrics: dict[str, Any],
 ) -> tuple[str, ...]:
     changes: list[str] = []
     if baseline_metrics.get("case_count") != current_metrics.get("case_count"):
@@ -204,7 +293,8 @@ def _compare_reliability(
 
 
 def _compare_interoperability(
-    baseline_metrics: dict[str, Any], current_metrics: dict[str, Any]
+    baseline_metrics: dict[str, Any],
+    current_metrics: dict[str, Any],
 ) -> tuple[str, ...]:
     changes: list[str] = []
     if baseline_metrics.get("case_count") != current_metrics.get("case_count"):
@@ -233,11 +323,18 @@ def _compare_interoperability(
 
 
 def compare_benchmark_to_baseline(
-    report_payload: dict[str, Any], baseline: BenchmarkBaseline
+    report_payload: dict[str, Any],
+    baseline: BenchmarkBaseline,
 ) -> BenchmarkComparison:
     verification = verify_benchmark_document(report_payload)
-    if not verification.valid or verification.report_id is None or verification.benchmark_type is None:
-        raise BenchmarkBaselineError("benchmark report must verify before baseline comparison")
+    if (
+        not verification.valid
+        or verification.report_id is None
+        or verification.benchmark_type is None
+    ):
+        raise BenchmarkBaselineError(
+            "benchmark report must verify before baseline comparison"
+        )
     if verification.benchmark_type != baseline.benchmark_type:
         return BenchmarkComparison(
             BenchmarkComparisonStatus.INDETERMINATE,
@@ -246,7 +343,10 @@ def compare_benchmark_to_baseline(
             (),
             "benchmark type changed",
         )
-    if _input_digest(report_payload, verification.benchmark_type) != baseline.input_digest:
+    if (
+        _input_digest(report_payload, verification.benchmark_type)
+        != baseline.input_digest
+    ):
         return BenchmarkComparison(
             BenchmarkComparisonStatus.INDETERMINATE,
             baseline.baseline_id,
