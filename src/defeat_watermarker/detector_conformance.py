@@ -20,8 +20,11 @@ _MAX_DETECTION_ITEMS = 128
 _MAX_DETECTION_ITEM_LENGTH = 2048
 _REQUIRED_PASS_CHECKS = {
     "runtime_identity",
+    "runtime_identity_stable",
     "read_only_capability",
+    "capabilities_deterministic",
     "supports_artifact",
+    "supports_deterministic",
     "adapter_id_match",
     "family_match",
     "deterministic_detection",
@@ -108,6 +111,16 @@ def _is_sha256(value: Any) -> bool:
     )
 
 
+def _artifact_state(artifact: Artifact) -> tuple[str, int, str, str, str]:
+    return (
+        sha256_bytes(artifact.data),
+        len(artifact.data),
+        artifact.media_type,
+        artifact.name,
+        artifact.modality.value,
+    )
+
+
 def run_detector_conformance(
     plugin_name: str,
     adapter: WatermarkAdapter,
@@ -116,7 +129,16 @@ def run_detector_conformance(
     checks: list[str] = []
     errors: list[str] = []
     runtime: tuple[str, ...] = ()
-    before = sha256_bytes(artifact.data)
+    original_state = _artifact_state(artifact)
+    source_changed = False
+
+    def check_source(stage: str) -> None:
+        nonlocal source_changed
+        if _artifact_state(artifact) != original_state:
+            source_changed = True
+            errors.append(
+                f"source artifact state changed during {stage}"[:_MAX_ERROR_LENGTH]
+            )
 
     try:
         first_runtime = adapter_runtime_identity(adapter)
@@ -130,7 +152,13 @@ def run_detector_conformance(
         errors.append(f"runtime identity failed: {exc}"[:_MAX_ERROR_LENGTH])
 
     try:
-        capabilities = tuple(adapter.capabilities())
+        first_capabilities = tuple(adapter.capabilities())
+        second_capabilities = tuple(adapter.capabilities())
+        if first_capabilities != second_capabilities:
+            errors.append("adapter capabilities are not deterministic")
+        else:
+            checks.append("capabilities_deterministic")
+        capabilities = first_capabilities
         if not capabilities or any(
             not isinstance(item, str) or not item for item in capabilities
         ):
@@ -145,13 +173,32 @@ def run_detector_conformance(
         errors.append(f"capability inspection failed: {exc}"[:_MAX_ERROR_LENGTH])
 
     detection: dict[str, Any] | None = None
-    if not adapter.supports(artifact):
+    try:
+        first_supports = adapter.supports(artifact)
+        check_source("first supports() check")
+        second_supports = adapter.supports(artifact)
+        check_source("second supports() check")
+    except Exception as exc:
+        errors.append(f"supports() failed: {exc}"[:_MAX_ERROR_LENGTH])
+        first_supports = False
+        second_supports = False
+
+    if type(first_supports) is not bool or type(second_supports) is not bool:
+        errors.append("adapter supports() must return boolean")
+    elif first_supports != second_supports:
+        errors.append("adapter supports() is not deterministic for identical input")
+    else:
+        checks.append("supports_deterministic")
+
+    if first_supports is not True:
         errors.append("adapter does not support the supplied artifact modality")
     else:
         checks.append("supports_artifact")
         try:
             first = adapter.detect(artifact)
+            check_source("first detect() call")
             second = adapter.detect(artifact)
+            check_source("second detect() call")
             if not isinstance(first, DetectionResult) or not isinstance(
                 second, DetectionResult
             ):
@@ -175,9 +222,20 @@ def run_detector_conformance(
         except Exception as exc:
             errors.append(f"detection failed: {exc}"[:_MAX_ERROR_LENGTH])
 
-    if sha256_bytes(artifact.data) != before:
-        errors.append("source artifact bytes changed during conformance check")
-    else:
+    if runtime:
+        try:
+            post_detection_runtime = adapter_runtime_identity(adapter)
+            if post_detection_runtime != runtime:
+                errors.append("adapter runtime identity changed after detection")
+            else:
+                checks.append("runtime_identity_stable")
+        except Exception as exc:
+            errors.append(
+                f"post-detection runtime identity failed: {exc}"[:_MAX_ERROR_LENGTH]
+            )
+
+    check_source("final conformance state check")
+    if not source_changed:
         checks.append("source_unchanged")
 
     if len(checks) > _MAX_CHECKS or len(errors) > _MAX_ERRORS:
@@ -186,10 +244,10 @@ def run_detector_conformance(
     return DetectorConformanceReport(
         plugin_name=plugin_name,
         adapter_id=adapter.adapter_id,
-        artifact_sha256=before,
-        artifact_byte_length=len(artifact.data),
-        media_type=artifact.media_type,
-        modality=artifact.modality.value,
+        artifact_sha256=original_state[0],
+        artifact_byte_length=original_state[1],
+        media_type=original_state[2],
+        modality=original_state[4],
         runtime_identity=runtime,
         passed=not errors,
         checks=tuple(checks),
