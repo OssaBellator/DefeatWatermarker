@@ -5,6 +5,7 @@ from pathlib import Path
 
 from defeat_watermarker.adapters.base import WatermarkAdapter
 from defeat_watermarker.benchmark_baseline import (
+    BenchmarkBaselineError,
     BenchmarkComparisonStatus,
     baseline_from_dict,
     compare_benchmark_to_baseline,
@@ -153,11 +154,35 @@ def test_baseline_is_content_addressed_and_round_trips(tmp_path: Path) -> None:
     assert len(loaded.baseline_id) == 64
 
 
-def test_baseline_cli_create_and_compare(tmp_path: Path, capsys) -> None:
+def test_rehashed_malformed_baseline_metrics_are_rejected(tmp_path: Path) -> None:
+    report = _report(tmp_path)
+    core = {
+        "schema_version": "0.1",
+        "benchmark_type": "reliability",
+        "source_report_id": report["report_id"],
+        "input_digest": report["corpus_digest"],
+        "runtime_digest": content_digest(report["adapter_runtime"]),
+        "metrics": {"accuracy": 2.0},
+    }
+    payload = {"baseline_id": content_digest(core), **core}
+
+    try:
+        baseline_from_dict(payload)
+    except BenchmarkBaselineError as exc:
+        assert "metrics are malformed" in str(exc)
+    else:
+        raise AssertionError("expected malformed baseline metrics to fail")
+
+
+def test_baseline_cli_create_compare_and_verify_comparison(
+    tmp_path: Path,
+    capsys,
+) -> None:
     report = _report(tmp_path)
     report_path = tmp_path / "report.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")
     baseline_path = tmp_path / "baseline.json"
+    comparison_path = tmp_path / "comparison.json"
 
     assert (
         baseline_cli_main(
@@ -170,9 +195,24 @@ def test_baseline_cli_create_and_compare(tmp_path: Path, capsys) -> None:
 
     assert (
         baseline_cli_main(
-            ["compare", str(report_path), "--baseline", str(baseline_path)]
+            [
+                "compare",
+                str(report_path),
+                "--baseline",
+                str(baseline_path),
+                "--output",
+                str(comparison_path),
+            ]
         )
         == 0
     )
-    comparison = json.loads(capsys.readouterr().out)
+    comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
     assert comparison["status"] == "same_or_better"
+    assert len(comparison["comparison_id"]) == 64
+
+    assert (
+        baseline_cli_main(["verify-comparison", str(comparison_path)])
+        == 0
+    )
+    verification = json.loads(capsys.readouterr().out)
+    assert verification["valid"] is True
