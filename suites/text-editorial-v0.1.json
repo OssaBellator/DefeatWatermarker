@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1",
+  "suite_id": "text-editorial-normalization",
+  "version": "0.1",
+  "description": "Fixed non-semantic text processing representative of ordinary storage/editor normalization. It does not paraphrase, translate or optimize text against a detector.",
+  "scenarios": [
+    {
+      "scenario_id": "unicode-nfc",
+      "mutation_id": "text.unicode-nfc.v1",
+      "modality": "text",
+      "transformation_family": "unicode-normalization",
+      "severity": "low",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "line-endings-lf",
+      "mutation_id": "text.line-endings-lf.v1",
+      "modality": "text",
+      "transformation_family": "line-ending-normalization",
+      "severity": "low",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "strip-trailing-horizontal-whitespace",
+      "mutation_id": "text.strip-trailing-horizontal-whitespace.v1",
+      "modality": "text",
+      "transformation_family": "editor-cleanup",
+      "severity": "low",
+      "generation_count": 1
+    }
+  ]
+}

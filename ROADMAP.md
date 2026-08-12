@@ -9,6 +9,7 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] Non-destructive control mutations
 - [x] Detector/mutation feedback separation
 - [x] Reports exclude derivative bytes
+- [x] Source/derivative byte ceilings and atomic report writes
 
 ## M1 — Reproducible robustness evidence
 
@@ -36,9 +37,9 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 ## M3 — Fixed modality suites
 
 - [x] Image suite descriptors and deterministic in-memory transformations
+- [x] Audio PCM-WAV suite with level/downmix/resample workflows
+- [x] Text suite limited to non-semantic editorial normalization
 - [ ] Video suite descriptors and reproducible fixtures
-- [ ] Audio suite descriptors and reproducible fixtures
-- [ ] Text/document editorial-survival suite descriptors
 - [x] Transformation implementations remain predefined and detector-blind
 - [x] No derivative chosen through detector-score optimization is exportable
 

@@ -144,6 +144,42 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             modalities=(Modality.IMAGE,),
             optional_extra="image",
         ),
+        ComponentCapability(
+            component_id="audio.wav-pcm16.gain-minus3db.v1",
+            component_type="mutation",
+            available=True,
+            modalities=(Modality.AUDIO,),
+        ),
+        ComponentCapability(
+            component_id="audio.wav-pcm16.downmix-mono.v1",
+            component_type="mutation",
+            available=True,
+            modalities=(Modality.AUDIO,),
+        ),
+        ComponentCapability(
+            component_id="audio.wav-pcm16.resample-16khz.v1",
+            component_type="mutation",
+            available=True,
+            modalities=(Modality.AUDIO,),
+        ),
+        ComponentCapability(
+            component_id="text.unicode-nfc.v1",
+            component_type="mutation",
+            available=True,
+            modalities=(Modality.TEXT,),
+        ),
+        ComponentCapability(
+            component_id="text.line-endings-lf.v1",
+            component_type="mutation",
+            available=True,
+            modalities=(Modality.TEXT,),
+        ),
+        ComponentCapability(
+            component_id="text.strip-trailing-horizontal-whitespace.v1",
+            component_type="mutation",
+            available=True,
+            modalities=(Modality.TEXT,),
+        ),
     )
 
 

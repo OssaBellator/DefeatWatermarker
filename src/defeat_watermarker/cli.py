@@ -23,7 +23,13 @@ from .mutations import (
     CenterCrop90Quality85,
     IdentityMutation,
     JpegReencodeQuality85,
+    NormalizeLineEndingsLf,
+    NormalizeUnicodeNfc,
     Resize75Quality85,
+    StripTrailingHorizontalWhitespace,
+    WavPcm16DownmixMono,
+    WavPcm16GainMinus3Db,
+    WavPcm16Resample16Khz,
 )
 from .profiles import ProfileError, ReadinessStatus, assess_profile, load_profile
 from .registry import AdapterRegistry
@@ -92,6 +98,12 @@ def _mutations():
         JpegReencodeQuality85(),
         Resize75Quality85(),
         CenterCrop90Quality85(),
+        WavPcm16GainMinus3Db(),
+        WavPcm16DownmixMono(),
+        WavPcm16Resample16Khz(),
+        NormalizeUnicodeNfc(),
+        NormalizeLineEndingsLf(),
+        StripTrailingHorizontalWhitespace(),
     ]
 
 

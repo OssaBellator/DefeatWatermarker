@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1",
+  "suite_id": "audio-pcm-workflow",
+  "version": "0.1",
+  "description": "Fixed detector-blind PCM-WAV processing representing ordinary level adjustment, channel downmix and sample-rate conversion. Derivatives remain in memory.",
+  "scenarios": [
+    {
+      "scenario_id": "gain-minus3db",
+      "mutation_id": "audio.wav-pcm16.gain-minus3db.v1",
+      "modality": "audio",
+      "transformation_family": "level-adjustment",
+      "severity": "low",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "downmix-mono",
+      "mutation_id": "audio.wav-pcm16.downmix-mono.v1",
+      "modality": "audio",
+      "transformation_family": "channel-conversion",
+      "severity": "medium",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "resample-16khz",
+      "mutation_id": "audio.wav-pcm16.resample-16khz.v1",
+      "modality": "audio",
+      "transformation_family": "sample-rate-conversion",
+      "severity": "medium",
+      "generation_count": 1
+    }
+  ]
+}
