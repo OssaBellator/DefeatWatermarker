@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "suite_id": "control-baseline",
+  "version": "0.1",
+  "description": "Non-destructive controls used to verify detector and reporting stability before adding modality-specific fixed transformations.",
+  "scenarios": [
+    {
+      "scenario_id": "identity",
+      "mutation_id": "control.identity.v1",
+      "modality": "unknown",
+      "transformation_family": "control",
+      "severity": "control",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "byte-copy",
+      "mutation_id": "control.byte-copy.v1",
+      "modality": "unknown",
+      "transformation_family": "control",
+      "severity": "control",
+      "generation_count": 1
+    }
+  ]
+}
