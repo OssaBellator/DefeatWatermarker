@@ -58,6 +58,14 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             notes="Official c2pa-python Reader; remote manifest fetching disabled by default.",
         ),
         ComponentCapability(
+            component_id="soft-binding.resolver-interface.v1",
+            component_type="resolver-interface",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            family=MarkFamily.REGISTRY,
+            notes="By-binding only; requires explicit endpoint/resource policy; no default network client.",
+        ),
+        ComponentCapability(
             component_id="control.identity.v1",
             component_type="mutation",
             available=True,

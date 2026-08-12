@@ -15,10 +15,12 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] Strict, versioned robustness-suite documents
 - [x] Canonical suite digests
 - [x] Artifact/report/suite content-addressed evidence bundles
+- [x] Gate policy/results bound into evidence IDs
+- [x] Offline evidence self-consistency verification
 - [x] Detection and provenance-assurance survival summaries
 - [x] CI-style gates
 - [x] Built-in control suite
-- [ ] Signed evidence manifests
+- [ ] Detached signed evidence manifests
 - [ ] Golden fixtures for every supported detector family
 
 ## M2 — Standards-aware provenance
@@ -26,8 +28,9 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] C2PA manifest discovery and cryptographic verification adapter
 - [x] Trust-anchor configuration with explicit verification states
 - [x] Bounded provenance evidence graph for manifests/ingredients
-- [ ] External resolver interface with bounded network policy
-- [ ] Soft-binding recovery evidence model
+- [x] External soft-binding resolver interface with bounded network policy
+- [x] Redacted soft-binding lookup/recovery evidence model
+- [ ] Concrete C2PA Soft Binding Resolution API client
 - [ ] Test vectors for valid, invalid, expired, trusted, and detached manifests
 
 ## M3 — Fixed modality suites
