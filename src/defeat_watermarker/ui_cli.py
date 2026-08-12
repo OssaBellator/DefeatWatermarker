@@ -12,7 +12,7 @@ from .engine import RobustnessEngine
 from .evidence import build_evidence_bundle
 from .io_utils import atomic_write_text, read_bounded_bytes
 from .metrics import RobustnessSummary, summarize_report
-from .models import Artifact, DetectionResult, EvaluationReport, Modality
+from .models import Artifact, DetectionResult, EvaluationReport
 from .suites import RobustnessSuite, load_suite
 
 
@@ -146,6 +146,14 @@ def _write_evidence(path: Path, evidence: dict[str, object]) -> None:
     atomic_write_text(path, json.dumps(evidence, indent=2, sort_keys=True) + "\n")
 
 
+def _detect_baseline(artifact: Artifact, registry) -> tuple[DetectionResult, ...]:
+    return tuple(
+        adapter.detect(artifact)
+        for adapter in registry
+        if adapter.supports(artifact)
+    )
+
+
 def _run(
     artifact_path: Path,
     media_type: str,
@@ -168,16 +176,11 @@ def _run(
 
     _print_header(artifact, suite)
 
-    baseline = tuple(
-        adapter.detect(artifact)
-        for adapter in registry
-        if adapter.supports(artifact)
-    )
-    print("\nDetector/model output")
-    print("---------------------")
-    print(_baseline_table(baseline))
-
     if scan_only or suite is None:
+        baseline = _detect_baseline(artifact, registry)
+        print("\nDetector/model output")
+        print("---------------------")
+        print(_baseline_table(baseline))
         if not scan_only and suite is None:
             print(
                 "\nNo built-in attack suite exists for this modality; showing detector output only. "
@@ -190,6 +193,9 @@ def _run(
     summary = summarize_report(report)
     evidence = build_evidence_bundle(artifact, suite, report, summary).to_dict()
 
+    print("\nDetector/model output")
+    print("---------------------")
+    print(_baseline_table(report.baseline))
     print("\nAnti-watermark attack results")
     print("-----------------------------")
     print(_scenario_table(report))
