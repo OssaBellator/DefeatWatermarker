@@ -177,11 +177,16 @@ class EvaluationReport:
     media_type: str
     baseline: tuple[DetectionResult, ...]
     scenarios: tuple[ScenarioEvaluation, ...]
+    adapter_runtime: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "artifact_name": self.artifact_name,
             "media_type": self.media_type,
+            "adapter_runtime": {
+                adapter_id: list(identity)
+                for adapter_id, identity in self.adapter_runtime
+            },
             "baseline": [item.to_dict() for item in self.baseline],
             "scenarios": [item.to_dict() for item in self.scenarios],
         }
