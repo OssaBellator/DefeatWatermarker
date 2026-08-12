@@ -2,18 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 from .batch import BatchError, run_batch
 from .io_utils import atomic_write_text
-
-_SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
-
-
-def _record_filename(index: int, relative_path: str) -> str:
-    safe = _SAFE_NAME_RE.sub("_", relative_path).strip("._") or "artifact"
-    return f"{index:03d}-{safe}.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,24 +46,16 @@ def main(argv: list[str] | None = None) -> int:
         records_dir = args.output_dir / "records"
         records_dir.mkdir(parents=True, exist_ok=True)
 
-        index_payload = result.to_dict()
-        written_records: list[dict[str, object]] = []
-        for index, record in enumerate(result.records, start=1):
-            record_index = record.to_index_dict()
-            if record.record is not None:
-                filename = _record_filename(index, record.relative_path)
-                atomic_write_text(
-                    records_dir / filename,
-                    json.dumps(record.record, indent=2, sort_keys=True) + "\n",
-                )
-                record_index["record_file"] = f"records/{filename}"
-            else:
-                record_index["record_file"] = None
-            written_records.append(record_index)
-        index_payload["records"] = written_records
+        for record in result.records:
+            if record.record is None or record.record_id is None:
+                continue
+            atomic_write_text(
+                records_dir / f"{record.record_id}.json",
+                json.dumps(record.record, indent=2, sort_keys=True) + "\n",
+            )
         atomic_write_text(
             args.output_dir / "batch.json",
-            json.dumps(index_payload, indent=2, sort_keys=True) + "\n",
+            json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
         )
     except (OSError, UnicodeError, BatchError, ValueError, KeyError) as exc:
         parser.error(str(exc))
