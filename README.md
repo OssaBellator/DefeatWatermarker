@@ -13,11 +13,11 @@ The current implementation includes:
 - typed artifacts, modalities, watermark families, verification states and bounded detection regions;
 - read-only detector adapters and a machine-readable capability registry;
 - explicitly enabled provider/research detector plugins through `defeat_watermarker.detectors` entry points;
-- detector runtime evidence including external package distribution/version when resolvable;
+- detector runtime evidence including external package distribution/version and optional bounded provider model/profile identity;
 - conservative provenance/container hint discovery;
 - optional C2PA verification through the official `c2pa-python` Reader;
 - explicit C2PA valid/trusted/invalid/error states and custom trust-anchor support;
-- a real CI-generated signed C2PA regression asset plus byte-tampered invalid counterpart;
+- a local real signed-C2PA regression path plus byte-tampered invalid counterpart;
 - bounded manifest/ingredient provenance graphs;
 - bounded soft-binding lookup, manifest retrieval and candidate-only recovery evidence;
 - detector-blind fixed attack mutations for image, audio, video and text;
@@ -29,11 +29,13 @@ The current implementation includes:
 - content-addressed evaluation evidence with offline integrity verification;
 - content-addressed detector-only scan evidence with offline integrity verification;
 - bounded multi-artifact batch execution with a content-addressed batch index/verifier;
-- self-contained verified static HTML reports for scans, attacks and batches;
+- self-contained verified static HTML reports for scans, attacks, batches and detector benchmarks;
 - separate survival metrics for detection, cryptographic verification, trust and provenance identifiers;
 - labelled false-positive/false-negative reliability benchmarking;
 - fixed multi-adapter interoperability matrices;
-- regression baselines and CI-style pass/fail/indeterminate gates;
+- semantic benchmark verification that recomputes reliability and pairwise metrics from per-case evidence;
+- runtime-aware content-addressed benchmark baselines and comparison evidence;
+- fixed pass/fail/indeterminate attack gates;
 - a guided console UI for artifact input and human-readable detector/attack output;
 - an EU Article 50(2) provider-marking engineering-readiness profile that reports gaps rather than legal compliance.
 
@@ -43,15 +45,20 @@ The current implementation includes:
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[dev]'
-pytest
 ```
 
 Optional integrations:
 
 ```bash
-pip install -e '.[c2pa]'   # official C2PA Reader integration
-pip install -e '.[image]'  # Pillow-backed image attack suite
+pip install -e '.[c2pa]'    # official C2PA Reader integration
+pip install -e '.[image]'   # Pillow-backed image attack suite
 pip install -e '.[signing]' # Ed25519 evidence signatures
+```
+
+For the checked-in provider-detector regression fixtures:
+
+```bash
+pip install -e fixtures/plugins/example_text_detector
 ```
 
 Inspect built-in capabilities and installed detector-plugin metadata:
@@ -59,6 +66,35 @@ Inspect built-in capabilities and installed detector-plugin metadata:
 ```bash
 defeat-watermarker capabilities
 ```
+
+## Local testing
+
+GitHub Actions is intentionally disabled on the current feature branch while hosted-runner quota is unavailable. The executable test source of truth is under [`scripts/test/`](scripts/test/README.md); those scripts do not install packages or access the network.
+
+Fast local validation:
+
+```bash
+bash scripts/test/preflight.sh
+bash scripts/test/core.sh
+bash scripts/test/cli_smoke.sh
+bash scripts/test/benchmarks.sh
+bash scripts/test/batch.sh
+bash scripts/test/fixtures.sh
+```
+
+Run the combined normal suite:
+
+```bash
+bash scripts/test/all.sh
+```
+
+Include heavyweight signing, FFmpeg/video and real C2PA tests when their optional dependencies are installed:
+
+```bash
+DWM_TEST_OPTIONAL=1 bash scripts/test/all.sh
+```
+
+`preflight.sh` rejects reintroduced workflow YAML while local-only testing is required, validates Python/package metadata and all public CLI declarations, then byte-compiles the source tree before test execution.
 
 ## Guided console UI
 
@@ -114,7 +150,9 @@ defeat-watermarker-ui artifact.txt \
   --json-output evidence.json
 ```
 
-The same `--detector-plugin` option is available on lower-level `scan`/`evaluate` paths and on the batch runner. There is intentionally no external mutation-plugin entry point.
+The same explicit `--detector-plugin` mechanism is available on lower-level scan/evaluate, batch, reliability and interoperability benchmark paths. There is intentionally no external mutation-plugin entry point.
+
+Providers may expose a bounded `runtime_identity()` hook for experiment-critical configuration such as model checkpoint or threshold profile. Those identifiers become part of evidence and benchmark comparability; invalid/unbounded runtime identity data fails evidence generation rather than being silently dropped.
 
 See [`docs/DETECTOR_PLUGINS.md`](docs/DETECTOR_PLUGINS.md).
 
@@ -165,14 +203,45 @@ Batch runs are capped at 64 files / 256 MiB source data, skip symlink files, rej
 
 See [`docs/BATCH.md`](docs/BATCH.md).
 
+## Detector benchmarks and baselines
+
+Reliability benchmarks use labelled detector cases; interoperability benchmarks compare multiple adapters on the same fixed cases. Explicit provider detectors can be enabled without changing the benchmark definitions:
+
+```bash
+defeat-watermarker benchmark reliability \
+  fixtures/benchmarks/text-detectors/reliability-v0.1.json \
+  --detector-plugin fixture-text \
+  --output reliability.json
+
+defeat-watermarker-benchmark-verify reliability.json
+```
+
+Create a runtime-aware baseline and a content-addressed comparison decision:
+
+```bash
+defeat-watermarker-benchmark-baseline create reliability.json \
+  --output baseline.json
+
+defeat-watermarker-benchmark-baseline compare reliability.json \
+  --baseline baseline.json \
+  --output comparison.json
+
+defeat-watermarker-benchmark-baseline verify-comparison comparison.json
+```
+
+A changed corpus/matrix or detector runtime identity is `indeterminate`, not a false pass/fail comparison. Comparable reliability and pairwise metrics can be classified as `same_or_better` or `regression`.
+
+See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and [`docs/BENCHMARK_BASELINES.md`](docs/BENCHMARK_BASELINES.md).
+
 ## Static HTML reports
 
 Verified evidence can be rendered locally without starting a service:
 
 ```bash
-defeat-watermarker-report evidence.json --output report.html
+defeat-watermarker-report evidence.json --output attack-report.html
 defeat-watermarker-report scan.json --output scan-report.html
 defeat-watermarker-report /tmp/dwm-batch --output batch-report.html
+defeat-watermarker-report reliability.json --output reliability-report.html
 ```
 
 The renderer verifies the input first. Reports contain no JavaScript, remote resources, source bytes or derivative bytes, and all evidence-originated text is HTML escaped.
@@ -211,7 +280,7 @@ Remote C2PA manifest fetching remains disabled in the normal verifier unless a s
 
 ## Real C2PA regression
 
-The C2PA CI job generates fresh ephemeral P-256 signing credentials, signs a deterministic JPEG through the official SDK, verifies it through the normal console path, then flips one JPEG scan-data byte while preserving the embedded manifest container.
+The local `scripts/test/c2pa.sh` runner generates fresh ephemeral P-256 signing credentials, signs a deterministic JPEG through the official SDK, verifies it through the normal console path, then tests a JPEG copy with a changed scan-data byte while preserving the embedded manifest container.
 
 The expected distinction is:
 
@@ -220,13 +289,13 @@ signed original: signing credential trusted + claim signature validated + hard b
 tampered copy:   manifest remains discoverable, but hard-binding validation fails => invalid
 ```
 
-Private keys and the generated media are not uploaded as CI artifacts. Public certificates and JSON evidence are retained for diagnostics.
+Ephemeral private keys and generated media stay inside the runner's temporary directory and are deleted when the script exits.
 
-See [`fixtures/c2pa/README.md`](fixtures/c2pa/README.md) and [`docs/C2PA.md`](docs/C2PA.md).
+See [`fixtures/c2pa/README.md`](fixtures/c2pa/README.md), [`docs/C2PA.md`](docs/C2PA.md), and [`scripts/test/c2pa.sh`](scripts/test/c2pa.sh).
 
-## CI attack gates
+## Automation/local attack gates
 
-A fixed attack result can become a CI gate. Detection and stronger provenance assurances are separate thresholds:
+A fixed attack result can become a local or external automation gate. Detection and stronger provenance assurances are separate thresholds:
 
 ```bash
 defeat-watermarker-attack asset.jpg \
@@ -271,7 +340,7 @@ Evaluation evidence binds:
 - requested gate policy/result;
 - a deterministic evidence ID over the full evidence core.
 
-Detector-only scan evidence similarly binds source reference, detector runtime identity and exact results into a deterministic `scan_id`. Batch indexes bind the per-artifact record IDs into `batch_id`; the batch verifier then verifies each referenced record independently.
+Detector-only scan evidence similarly binds source reference, detector runtime identity and exact results into a deterministic `scan_id`. Batch indexes bind per-artifact record IDs into `batch_id`; the batch verifier then verifies each referenced record independently. Benchmark reports bind labelled/per-adapter results, runtime identity and recomputed metrics into `report_id`; baselines and comparison records add their own content IDs.
 
 This makes anti-watermark experiments reproducible and auditable without turning the result channel into a cleaned-media export mechanism.
 
@@ -281,4 +350,4 @@ The project is adversarial, but the core does not implement detector-gradient ac
 
 This boundary is intentional: fixed hostile attacks can be replayed across implementations and used to improve marking robustness, while adaptive stripping/evasion would instead turn the framework into provenance-bypass tooling.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md), [`docs/DETECTOR_PLUGINS.md`](docs/DETECTOR_PLUGINS.md), [`docs/BATCH.md`](docs/BATCH.md), [`docs/REPORTS.md`](docs/REPORTS.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md), [`docs/DETECTOR_PLUGINS.md`](docs/DETECTOR_PLUGINS.md), [`docs/BATCH.md`](docs/BATCH.md), [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md), [`docs/BENCHMARK_BASELINES.md`](docs/BENCHMARK_BASELINES.md), [`docs/REPORTS.md`](docs/REPORTS.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), [`scripts/test/README.md`](scripts/test/README.md), and [`ROADMAP.md`](ROADMAP.md).
