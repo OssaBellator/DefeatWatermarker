@@ -7,6 +7,7 @@ from defeat_watermarker.adapters.base import WatermarkAdapter
 from defeat_watermarker.batch_cli import main as batch_main
 from defeat_watermarker.builtin_suites import builtin_suite_for
 from defeat_watermarker.cli import _mutations
+from defeat_watermarker.digests import content_digest
 from defeat_watermarker.engine import RobustnessEngine
 from defeat_watermarker.evidence import build_evidence_bundle
 from defeat_watermarker.metrics import summarize_report
@@ -29,6 +30,109 @@ class ReportAdapter(WatermarkAdapter):
             detected=True,
             confidence=0.8,
         )
+
+
+def _bind_report(core: dict[str, object]) -> dict[str, object]:
+    return {"report_id": content_digest(core), **core}
+
+
+def _reliability_report() -> dict[str, object]:
+    return _bind_report(
+        {
+            "schema_version": "0.2",
+            "corpus_id": "report-fixture",
+            "corpus_version": "0.1",
+            "corpus_digest": "a" * 64,
+            "adapter_id": "fixture.report.v1",
+            "adapter_runtime": ["adapter_id=fixture.report.v1"],
+            "cases": [
+                {
+                    "case_id": "positive<script>",
+                    "artifact_sha256": "b" * 64,
+                    "byte_length": 10,
+                    "expected_detected": True,
+                    "actual_detected": True,
+                    "confidence": 1.0,
+                    "verification_state": "not_evaluated",
+                },
+                {
+                    "case_id": "negative",
+                    "artifact_sha256": "c" * 64,
+                    "byte_length": 9,
+                    "expected_detected": False,
+                    "actual_detected": False,
+                    "confidence": 0.0,
+                    "verification_state": "not_evaluated",
+                },
+            ],
+            "summary": {
+                "true_positive": 1,
+                "true_negative": 1,
+                "false_positive": 0,
+                "false_negative": 0,
+                "accuracy": 1.0,
+                "precision": 1.0,
+                "recall": 1.0,
+                "specificity": 1.0,
+                "false_positive_rate": 0.0,
+                "false_negative_rate": 0.0,
+            },
+        }
+    )
+
+
+def _interoperability_report() -> dict[str, object]:
+    return _bind_report(
+        {
+            "schema_version": "0.2",
+            "matrix_id": "report-matrix",
+            "matrix_version": "0.1",
+            "matrix_digest": "d" * 64,
+            "adapter_runtime": {
+                "left": ["adapter_id=left"],
+                "right": ["adapter_id=right"],
+            },
+            "cases": [
+                {
+                    "case_id": "case",
+                    "artifact_sha256": "e" * 64,
+                    "byte_length": 5,
+                    "observations": [
+                        {
+                            "adapter_id": "left",
+                            "supported": True,
+                            "family": "unknown",
+                            "detected": True,
+                            "confidence": 1.0,
+                            "verification_state": "not_evaluated",
+                            "provenance_identifier": None,
+                        },
+                        {
+                            "adapter_id": "right",
+                            "supported": True,
+                            "family": "unknown",
+                            "detected": False,
+                            "confidence": 0.0,
+                            "verification_state": "not_evaluated",
+                            "provenance_identifier": None,
+                        },
+                    ],
+                }
+            ],
+            "pairs": [
+                {
+                    "left_adapter_id": "left",
+                    "right_adapter_id": "right",
+                    "comparable_cases": 1,
+                    "detection_agreements": 0,
+                    "detection_disagreements": 1,
+                    "agreement_rate": 0.0,
+                    "both_detected": 0,
+                    "both_not_detected": 0,
+                }
+            ],
+        }
+    )
 
 
 def test_scan_report_verifies_and_escapes_artifact_name(tmp_path: Path) -> None:
@@ -88,6 +192,37 @@ def test_batch_report_requires_and_renders_verified_batch(tmp_path: Path) -> Non
     assert "unknown.bin" in rendered
     assert "scan" in rendered
     assert "opaque fixture" not in rendered
+
+
+def test_reliability_benchmark_report_is_verified_static_html(tmp_path: Path) -> None:
+    payload = _reliability_report()
+    path = tmp_path / "reliability.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    rendered = render_report(path)
+
+    assert "DefeatWatermarker reliability benchmark report" in rendered
+    assert "100.0%" in rendered
+    assert "&lt;script&gt;" in rendered
+    assert "positive<script>" not in rendered
+    assert "<script" not in rendered
+    assert "http://" not in rendered
+    assert "https://" not in rendered
+
+
+def test_interoperability_benchmark_report_is_verified_static_html(tmp_path: Path) -> None:
+    payload = _interoperability_report()
+    path = tmp_path / "interoperability.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    rendered = render_report(path)
+
+    assert "DefeatWatermarker interoperability benchmark report" in rendered
+    assert "0.0%" in rendered
+    assert "left" in rendered and "right" in rendered
+    assert "<script" not in rendered
+    assert "http://" not in rendered
+    assert "https://" not in rendered
 
 
 def test_report_cli_writes_self_contained_html(tmp_path: Path, capsys) -> None:
