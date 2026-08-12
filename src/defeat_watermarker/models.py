@@ -111,11 +111,32 @@ class DetectionComparison:
     def confidence_delta(self) -> float:
         return self.after.confidence - self.baseline.confidence
 
+    @property
+    def verification_survived(self) -> bool | None:
+        if not self.baseline.cryptographically_verified:
+            return None
+        return self.after.cryptographically_verified
+
+    @property
+    def trust_survived(self) -> bool | None:
+        if self.baseline.verification_state is not VerificationState.TRUSTED:
+            return None
+        return self.after.verification_state is VerificationState.TRUSTED
+
+    @property
+    def provenance_identifier_preserved(self) -> bool | None:
+        if self.baseline.provenance_identifier is None:
+            return None
+        return self.after.provenance_identifier == self.baseline.provenance_identifier
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "adapter_id": self.adapter_id,
             "survived": self.survived,
             "confidence_delta": self.confidence_delta,
+            "verification_survived": self.verification_survived,
+            "trust_survived": self.trust_survived,
+            "provenance_identifier_preserved": self.provenance_identifier_preserved,
             "baseline": self.baseline.to_dict(),
             "after": self.after.to_dict(),
         }

@@ -92,6 +92,9 @@ def _evaluate(
     media_type: str,
     output: Path | None,
     min_survival_rate: float | None,
+    min_verification_survival_rate: float | None,
+    min_trust_survival_rate: float | None,
+    min_provenance_id_preservation_rate: float | None,
 ) -> int:
     suite = load_suite(suite_path)
     artifact = Artifact(
@@ -106,9 +109,23 @@ def _evaluate(
     evidence = build_evidence_bundle(artifact, suite, report, summary)
     payload = evidence.to_dict()
 
+    thresholds = (
+        min_survival_rate,
+        min_verification_survival_rate,
+        min_trust_survival_rate,
+        min_provenance_id_preservation_rate,
+    )
     exit_code = 0
-    if min_survival_rate is not None:
-        gate = apply_gate(summary, GatePolicy(min_survival_rate=min_survival_rate))
+    if any(value is not None for value in thresholds):
+        gate = apply_gate(
+            summary,
+            GatePolicy(
+                min_survival_rate=min_survival_rate,
+                min_verification_survival_rate=min_verification_survival_rate,
+                min_trust_survival_rate=min_trust_survival_rate,
+                min_provenance_id_preservation_rate=min_provenance_id_preservation_rate,
+            ),
+        )
         payload["gate"] = gate.to_dict()
         if gate.status.value == "fail":
             exit_code = 2
@@ -145,6 +162,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--media-type", default="application/octet-stream")
     evaluate.add_argument("--output", type=Path)
     evaluate.add_argument("--min-survival-rate", type=float)
+    evaluate.add_argument("--min-verification-survival-rate", type=float)
+    evaluate.add_argument("--min-trust-survival-rate", type=float)
+    evaluate.add_argument("--min-provenance-id-preservation-rate", type=float)
     return parser
 
 
@@ -162,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
                 args.media_type,
                 args.output,
                 args.min_survival_rate,
+                args.min_verification_survival_rate,
+                args.min_trust_survival_rate,
+                args.min_provenance_id_preservation_rate,
             )
     except (OSError, SuiteError, ValueError, KeyError) as exc:
         parser.error(str(exc))
