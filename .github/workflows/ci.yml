@@ -172,7 +172,7 @@ jobs:
             --media-type image/jpeg \
             --c2pa-trust-anchors /tmp/c2pa-fixture/root.pem \
             --output /tmp/c2pa-fixture/tampered-scan.json
-      - name: Assert C2PA cryptographic regression states
+      - name: Diagnose and assert C2PA cryptographic regression states
         run: |
           python - <<'PY'
           import json
@@ -185,18 +185,36 @@ jobs:
           signed_baseline = {
               item['adapter_id']: item for item in signed['report']['baseline']
           }[adapter_id]
-          assert signed_baseline['detected'] is True
-          assert signed_baseline['cryptographically_verified'] is True
-          assert signed_baseline['verification_state'] in {'valid', 'trusted'}
-
           tampered_result = {
               item['adapter_id']: item for item in tampered['results']
           }[adapter_id]
+
+          print(json.dumps({
+              'signed': {
+                  'detected': signed_baseline['detected'],
+                  'cryptographically_verified': signed_baseline['cryptographically_verified'],
+                  'verification_state': signed_baseline['verification_state'],
+                  'validation_codes': signed_baseline['validation_codes'],
+                  'warnings': signed_baseline['warnings'],
+              },
+              'tampered': {
+                  'detected': tampered_result['detected'],
+                  'cryptographically_verified': tampered_result['cryptographically_verified'],
+                  'verification_state': tampered_result['verification_state'],
+                  'validation_codes': tampered_result['validation_codes'],
+                  'warnings': tampered_result['warnings'],
+              },
+          }, indent=2, sort_keys=True))
+
+          assert signed_baseline['detected'] is True
+          assert signed_baseline['cryptographically_verified'] is True
+          assert signed_baseline['verification_state'] in {'valid', 'trusted'}
           assert tampered_result['detected'] is True
           assert tampered_result['cryptographically_verified'] is False
           assert tampered_result['verification_state'] == 'invalid'
           PY
       - name: Preserve C2PA regression evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: c2pa-regression-evidence
@@ -205,6 +223,7 @@ jobs:
             /tmp/c2pa-fixture/signed-evidence.json
             /tmp/c2pa-fixture/tampered-scan.json
             /tmp/c2pa-fixture/root.pem
+            /tmp/c2pa-fixture/leaf.pem
           if-no-files-found: error
           retention-days: 14
 
