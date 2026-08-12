@@ -62,6 +62,10 @@ def test_pairwise_matrix_reports_agreement_without_artifact_bytes(tmp_path) -> N
     assert pair.agreement_rate == 1.0
     assert pair.both_detected == 1
     assert pair.both_not_detected == 1
+    assert report.schema_version == "0.2"
+    runtime = dict(report.adapter_runtime)
+    assert set(runtime) == {"left", "right"}
+    assert all(any(item.startswith("python=") for item in identity) for identity in runtime.values())
     assert "alpha beta" not in repr(report.to_dict())
     assert len(report.report_id) == 64
 
