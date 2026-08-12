@@ -33,7 +33,7 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] External soft-binding resolver interface with bounded network policy
 - [x] Redacted soft-binding lookup/recovery evidence model
 - [x] Concrete C2PA POST `/matches/byBinding` client with no redirects/artifact uploads
-- [ ] Separately bounded manifest retrieval client
+- [x] Separately bounded manifest retrieval client
 - [ ] Test vectors for valid, invalid, expired, trusted, and detached manifests
 
 ## M3 — Fixed modality suites
