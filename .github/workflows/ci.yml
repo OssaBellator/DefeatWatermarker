@@ -114,6 +114,9 @@ jobs:
             -extensions root_ext \
             -out /tmp/c2pa-fixture/root.pem
           openssl ecparam -name prime256v1 -genkey -noout \
+            -out /tmp/c2pa-fixture/leaf-sec1.key
+          openssl pkcs8 -topk8 -nocrypt \
+            -in /tmp/c2pa-fixture/leaf-sec1.key \
             -out /tmp/c2pa-fixture/leaf.key
           openssl req -new -sha256 \
             -key /tmp/c2pa-fixture/leaf.key \
