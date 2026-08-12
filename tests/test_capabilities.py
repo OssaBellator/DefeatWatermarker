@@ -8,6 +8,8 @@ def test_capability_document_has_stable_component_ids() -> None:
     ids = [item["component_id"] for item in payload["components"]]
     assert len(ids) == len(set(ids))
     assert "c2pa.reader.v1" in ids
+    assert "c2pa.manifest-fetch.bounded.v1" in ids
+    assert "evidence.signature.ed25519.v1" in ids
     assert "image.jpeg-reencode.q85.v1" in ids
     assert "audio.wav-pcm16.resample-16khz.v1" in ids
     assert "detector.conformance.read-only.v1" in ids
@@ -28,6 +30,26 @@ def test_new_local_framework_capabilities_are_available_and_detector_blind() -> 
     assert local_tests["available"] is True
     assert local_tests["component_type"] == "framework"
     assert "command/return code" in local_tests["notes"]
+
+    manifest_fetch = by_id["c2pa.manifest-fetch.bounded.v1"]
+    assert manifest_fetch["available"] is True
+    assert manifest_fetch["component_type"] == "resolver-client"
+    assert "no redirects or proxies" in manifest_fetch["notes"]
+
+
+def test_signature_capability_tracks_optional_dependency(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "defeat_watermarker.capabilities.importlib.util.find_spec",
+        lambda name: None if name == "cryptography" else object(),
+    )
+
+    payload = capability_document()
+    by_id = {item["component_id"]: item for item in payload["components"]}
+    signature = by_id["evidence.signature.ed25519.v1"]
+
+    assert signature["available"] is False
+    assert signature["optional_extra"] == "signing"
+    assert "private-key bytes are never serialized" in signature["notes"]
 
 
 def test_capability_document_discovers_plugins_without_loading(monkeypatch) -> None:
