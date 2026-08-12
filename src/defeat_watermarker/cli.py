@@ -8,6 +8,7 @@ from typing import Any
 from .adapters.c2pa import C2paPythonBackend, C2paTrustPolicy, C2paVerifierAdapter
 from .adapters.metadata import ContainerHintAdapter
 from .capabilities import capability_document
+from .detector_plugins import load_detector_plugins
 from .engine import RobustnessEngine
 from .evidence import (
     EvidenceError,
@@ -73,7 +74,10 @@ def _load_trust_anchors(path: Path | None) -> str | None:
     return data
 
 
-def _registry(trust_anchors_path: Path | None = None) -> AdapterRegistry:
+def _registry(
+    trust_anchors_path: Path | None = None,
+    detector_plugins: tuple[str, ...] = (),
+) -> AdapterRegistry:
     adapters = [ContainerHintAdapter()]
     anchors = _load_trust_anchors(trust_anchors_path)
     if C2paPythonBackend.available():
@@ -91,7 +95,10 @@ def _registry(trust_anchors_path: Path | None = None) -> AdapterRegistry:
             "C2PA trust anchors were supplied but c2pa-python is not installed; "
             "install defeat-watermarker[c2pa]"
         )
-    return AdapterRegistry(adapters)
+    registry = AdapterRegistry(adapters)
+    for adapter in load_detector_plugins(detector_plugins):
+        registry.register(adapter)
+    return registry
 
 
 def _mutations():
@@ -112,7 +119,13 @@ def _mutations():
     ]
 
 
-def _scan(path: Path, media_type: str, output: Path | None, trust: Path | None) -> int:
+def _scan(
+    path: Path,
+    media_type: str,
+    output: Path | None,
+    trust: Path | None,
+    detector_plugins: tuple[str, ...] = (),
+) -> int:
     artifact = Artifact(
         data=read_bounded_bytes(path),
         media_type=media_type,
@@ -121,7 +134,7 @@ def _scan(path: Path, media_type: str, output: Path | None, trust: Path | None) 
     )
     results = [
         adapter.detect(artifact).to_dict()
-        for adapter in _registry(trust)
+        for adapter in _registry(trust, detector_plugins)
         if adapter.supports(artifact)
     ]
     _emit({"artifact_name": artifact.name, "results": results}, output)
@@ -196,6 +209,7 @@ def _evaluate(
     min_verification_survival_rate: float | None,
     min_trust_survival_rate: float | None,
     min_provenance_id_preservation_rate: float | None,
+    detector_plugins: tuple[str, ...] = (),
 ) -> int:
     suite = load_suite(suite_path)
     artifact = Artifact(
@@ -204,7 +218,7 @@ def _evaluate(
         name=path.name,
         modality=_infer_modality(media_type),
     )
-    engine = RobustnessEngine(_registry(trust), _mutations())
+    engine = RobustnessEngine(_registry(trust, detector_plugins), _mutations())
     report = engine.evaluate(artifact, suite.scenarios)
     summary = summarize_report(report)
     thresholds = (
@@ -235,10 +249,20 @@ def _evaluate(
     return exit_code
 
 
+def _add_detector_plugin_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--detector-plugin",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="explicitly load one installed read-only detector plugin; repeatable",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker",
-        description="Defensive AI watermark/provenance robustness lab",
+        description="Anti-watermark and provenance robustness harness",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("capabilities", help="show adapters/mutations and dependency state")
@@ -248,6 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--media-type", default="application/octet-stream")
     scan.add_argument("--output", type=Path)
     scan.add_argument("--c2pa-trust-anchors", type=Path)
+    _add_detector_plugin_argument(scan)
 
     suite = subparsers.add_parser("suite", help="work with immutable robustness suites")
     suite_sub = suite.add_subparsers(dest="suite_command", required=True)
@@ -287,6 +312,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--media-type", default="application/octet-stream")
     evaluate.add_argument("--output", type=Path)
     evaluate.add_argument("--c2pa-trust-anchors", type=Path)
+    _add_detector_plugin_argument(evaluate)
     evaluate.add_argument("--min-survival-rate", type=float)
     evaluate.add_argument("--min-verification-survival-rate", type=float)
     evaluate.add_argument("--min-trust-survival-rate", type=float)
@@ -301,7 +327,13 @@ def main(argv: list[str] | None = None) -> int:
             _emit(capability_document(), None)
             return 0
         if args.command == "scan":
-            return _scan(args.path, args.media_type, args.output, args.c2pa_trust_anchors)
+            return _scan(
+                args.path,
+                args.media_type,
+                args.output,
+                args.c2pa_trust_anchors,
+                tuple(args.detector_plugin),
+            )
         if args.command == "suite" and args.suite_command == "validate":
             return _validate_suite(args.path)
         if args.command == "evidence" and args.evidence_command == "verify":
@@ -325,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_verification_survival_rate,
                 args.min_trust_survival_rate,
                 args.min_provenance_id_preservation_rate,
+                tuple(args.detector_plugin),
             )
     except (
         OSError,
