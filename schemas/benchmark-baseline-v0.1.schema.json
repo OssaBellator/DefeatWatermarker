@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/benchmark-baseline-v0.1.schema.json",
+  "title": "DefeatWatermarker benchmark baseline v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "baseline_id",
+    "schema_version",
+    "benchmark_type",
+    "source_report_id",
+    "input_digest",
+    "runtime_digest",
+    "metrics"
+  ],
+  "properties": {
+    "baseline_id": {"$ref": "#/$defs/sha256"},
+    "schema_version": {"const": "0.1"},
+    "benchmark_type": {"enum": ["reliability", "interoperability"]},
+    "source_report_id": {"$ref": "#/$defs/sha256"},
+    "input_digest": {"$ref": "#/$defs/sha256"},
+    "runtime_digest": {"$ref": "#/$defs/sha256"},
+    "metrics": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"benchmark_type": {"const": "reliability"}}},
+      "then": {
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "accuracy",
+              "precision",
+              "recall",
+              "specificity",
+              "false_positive_rate",
+              "false_negative_rate",
+              "case_count"
+            ],
+            "properties": {
+              "accuracy": {"$ref": "#/$defs/rate"},
+              "precision": {"$ref": "#/$defs/nullable_rate"},
+              "recall": {"$ref": "#/$defs/nullable_rate"},
+              "specificity": {"$ref": "#/$defs/nullable_rate"},
+              "false_positive_rate": {"$ref": "#/$defs/nullable_rate"},
+              "false_negative_rate": {"$ref": "#/$defs/nullable_rate"},
+              "case_count": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"benchmark_type": {"const": "interoperability"}}},
+      "then": {
+        "properties": {
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["case_count", "pairs"],
+            "properties": {
+              "case_count": {"type": "integer", "minimum": 1},
+              "pairs": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["comparable_cases", "agreement_rate"],
+                  "properties": {
+                    "comparable_cases": {"type": "integer", "minimum": 0},
+                    "agreement_rate": {"$ref": "#/$defs/nullable_rate"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "nullable_rate": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/rate"}
+      ]
+    }
+  }
+}
