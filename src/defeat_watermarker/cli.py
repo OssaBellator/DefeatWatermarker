@@ -183,14 +183,30 @@ def _assess_profile(path: Path, suite_paths: list[Path]) -> int:
     return 0 if assessment.status is ReadinessStatus.READY else 5
 
 
-def _run_reliability(corpus_path: Path, output: Path | None, trust: Path | None) -> int:
-    report = run_reliability_benchmark(corpus_path, _registry(trust))
+def _run_reliability(
+    corpus_path: Path,
+    output: Path | None,
+    trust: Path | None,
+    detector_plugins: tuple[str, ...] = (),
+) -> int:
+    report = run_reliability_benchmark(
+        corpus_path,
+        _registry(trust, detector_plugins),
+    )
     _emit(report.to_dict(), output)
     return 0
 
 
-def _run_interoperability(matrix_path: Path, output: Path | None, trust: Path | None) -> int:
-    report = run_interoperability_matrix(matrix_path, _registry(trust))
+def _run_interoperability(
+    matrix_path: Path,
+    output: Path | None,
+    trust: Path | None,
+    detector_plugins: tuple[str, ...] = (),
+) -> int:
+    report = run_interoperability_matrix(
+        matrix_path,
+        _registry(trust, detector_plugins),
+    )
     _emit(report.to_dict(), output)
     return 0
 
@@ -295,12 +311,14 @@ def build_parser() -> argparse.ArgumentParser:
     reliability.add_argument("corpus", type=Path)
     reliability.add_argument("--output", type=Path)
     reliability.add_argument("--c2pa-trust-anchors", type=Path)
+    _add_detector_plugin_argument(reliability)
     interoperability = benchmark_sub.add_parser(
         "interoperability", help="run a fixed multi-adapter agreement matrix"
     )
     interoperability.add_argument("matrix", type=Path)
     interoperability.add_argument("--output", type=Path)
     interoperability.add_argument("--c2pa-trust-anchors", type=Path)
+    _add_detector_plugin_argument(interoperability)
 
     evaluate = subparsers.add_parser("evaluate", help="run a predefined robustness suite")
     evaluate.add_argument("path", type=Path)
@@ -339,9 +357,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "profile" and args.profile_command == "assess":
             return _assess_profile(args.path, args.suite)
         if args.command == "benchmark" and args.benchmark_command == "reliability":
-            return _run_reliability(args.corpus, args.output, args.c2pa_trust_anchors)
+            return _run_reliability(
+                args.corpus,
+                args.output,
+                args.c2pa_trust_anchors,
+                tuple(args.detector_plugin),
+            )
         if args.command == "benchmark" and args.benchmark_command == "interoperability":
-            return _run_interoperability(args.matrix, args.output, args.c2pa_trust_anchors)
+            return _run_interoperability(
+                args.matrix,
+                args.output,
+                args.c2pa_trust_anchors,
+                tuple(args.detector_plugin),
+            )
         if args.command == "evaluate":
             return _evaluate(
                 args.path,
