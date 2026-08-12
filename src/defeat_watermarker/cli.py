@@ -38,6 +38,7 @@ from .mutations import (
 from .profiles import ProfileError, ReadinessStatus, assess_profile, load_profile
 from .registry import AdapterRegistry
 from .reliability import ReliabilityError, run_reliability_benchmark
+from .scan_evidence import build_scan_evidence
 from .suites import SuiteError, load_suite
 
 _MAX_TRUST_ANCHOR_BYTES = 1024 * 1024
@@ -131,12 +132,8 @@ def _scan(
         name=path.name,
         modality=_infer_modality(media_type),
     )
-    results = [
-        adapter.detect(artifact).to_dict()
-        for adapter in _registry(trust, detector_plugins)
-        if adapter.supports(artifact)
-    ]
-    _emit({"artifact_name": artifact.name, "results": results}, output)
+    scan = build_scan_evidence(artifact, _registry(trust, detector_plugins))
+    _emit(scan.to_dict(), output)
     return 0
 
 
