@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 cd "$DWM_ROOT"
-bash scripts/test/preflight.sh
-python -m pytest -q
-python scripts/test/benchmark_regression.py
-bash scripts/test/cli_smoke.sh
-bash scripts/test/conformance.sh
-bash scripts/test/benchmarks.sh
-bash scripts/test/batch.sh
-bash scripts/test/fixtures.sh
+
+suite="standard"
 if [[ "${DWM_TEST_OPTIONAL:-0}" == "1" ]]; then
-  bash scripts/test/signing.sh
-  bash scripts/test/video.sh
-  bash scripts/test/c2pa.sh
-else
-  echo 'Optional signing/video/C2PA tests skipped; run with DWM_TEST_OPTIONAL=1 to include them.'
+  suite="optional"
 fi
+
+output="${DWM_TEST_REPORT:-$DWM_ROOT/.defeat-watermarker/local-test-report.json}"
+exec python scripts/test/recorded.py run --suite "$suite" --output "$output"
