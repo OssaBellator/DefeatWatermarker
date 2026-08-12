@@ -14,6 +14,7 @@ from defeat_watermarker.models import Artifact, DetectionResult, MarkFamily, Mod
 from defeat_watermarker.mutations.base import IdentityMutation
 from defeat_watermarker.registry import AdapterRegistry
 from defeat_watermarker.signatures import (
+    EvidenceSignature,
     SignatureError,
     load_signature,
     sign_evidence,
@@ -135,5 +136,22 @@ def test_key_id_rejects_line_separators(tmp_path) -> None:
     evidence = _evidence()
     private_path, _ = _write_keys(tmp_path)
 
-    with pytest.raises(SignatureError, match="control separator"):
+    with pytest.raises(SignatureError, match="single-line text"):
         sign_evidence(evidence, private_path, key_id="release\nspoofed")
+
+
+def test_direct_signature_construction_rejects_wrong_runtime_types() -> None:
+    with pytest.raises(SignatureError, match="key_id must be"):
+        EvidenceSignature(
+            key_id=123,  # type: ignore[arg-type]
+            evidence_id="a" * 64,
+            public_key_sha256="b" * 64,
+            signature=b"x" * 64,
+        )
+    with pytest.raises(SignatureError, match="exactly 64 bytes"):
+        EvidenceSignature(
+            key_id="fixture",
+            evidence_id="a" * 64,
+            public_key_sha256="b" * 64,
+            signature="x" * 64,  # type: ignore[arg-type]
+        )
