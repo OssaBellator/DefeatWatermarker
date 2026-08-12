@@ -37,6 +37,7 @@ SUITES = {
         ("preflight", ("bash", "scripts/test/preflight.sh")),
         ("pytest", (_PYTHON, "-m", "pytest", "-q")),
         ("benchmark-regression", (_PYTHON, "scripts/test/benchmark_regression.py")),
+        ("schema-audit", ("bash", "scripts/test/schemas.sh")),
         ("cli-smoke", ("bash", "scripts/test/cli_smoke.sh")),
         ("package-wheel", ("bash", "scripts/test/package.sh")),
         ("detector-conformance", ("bash", "scripts/test/conformance.sh")),
