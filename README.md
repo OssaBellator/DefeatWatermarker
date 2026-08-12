@@ -12,9 +12,12 @@ The current implementation includes:
 
 - typed artifacts, modalities, watermark families, verification states and bounded detection regions;
 - read-only detector adapters and a machine-readable capability registry;
+- explicitly enabled provider/research detector plugins through `defeat_watermarker.detectors` entry points;
+- detector runtime evidence including external package distribution/version when resolvable;
 - conservative provenance/container hint discovery;
 - optional C2PA verification through the official `c2pa-python` Reader;
 - explicit C2PA valid/trusted/invalid/error states and custom trust-anchor support;
+- a real CI-generated signed C2PA regression asset plus byte-tampered invalid counterpart;
 - bounded manifest/ingredient provenance graphs;
 - bounded soft-binding lookup, manifest retrieval and candidate-only recovery evidence;
 - detector-blind fixed attack mutations for image, audio, video and text;
@@ -23,7 +26,10 @@ The current implementation includes:
 - fixed FFmpeg H.264/AAC transcode and scale/transcode attacks;
 - Unicode, line-ending and editor-cleanup text attacks;
 - strict versioned robustness suites with canonical SHA-256 digests;
-- content-addressed evidence bundles with offline integrity verification;
+- content-addressed evaluation evidence with offline integrity verification;
+- content-addressed detector-only scan evidence with offline integrity verification;
+- bounded multi-artifact batch execution with a content-addressed batch index/verifier;
+- self-contained verified static HTML reports for scans, attacks and batches;
 - separate survival metrics for detection, cryptographic verification, trust and provenance identifiers;
 - labelled false-positive/false-negative reliability benchmarking;
 - fixed multi-adapter interoperability matrices;
@@ -45,9 +51,10 @@ Optional integrations:
 ```bash
 pip install -e '.[c2pa]'   # official C2PA Reader integration
 pip install -e '.[image]'  # Pillow-backed image attack suite
+pip install -e '.[signing]' # Ed25519 evidence signatures
 ```
 
-Inspect the current detector and mutation environment:
+Inspect built-in capabilities and installed detector-plugin metadata:
 
 ```bash
 defeat-watermarker capabilities
@@ -55,13 +62,13 @@ defeat-watermarker capabilities
 
 ## Guided console UI
 
-For the simplest artifact-in/results-out workflow, use:
+For the simplest artifact-in/results-out workflow:
 
 ```bash
 defeat-watermarker-ui artifact.png
 ```
 
-The UI infers the media type, shows the baseline detector/model output, auto-selects the built-in fixed attack suite for image/audio/video/text, and prints the post-attack confidence and assurance changes.
+The UI infers the media type, shows the baseline detector/model output, auto-selects the built-in fixed attack suite for image/audio/video/text, and prints post-attack confidence and assurance changes.
 
 Run it without arguments in an interactive terminal to be prompted for the artifact path:
 
@@ -69,7 +76,7 @@ Run it without arguments in an interactive terminal to be prompted for the artif
 defeat-watermarker-ui
 ```
 
-Save the complete machine-readable evidence bundle while keeping the human-readable console report:
+Save complete machine-readable evaluation evidence while keeping the human-readable console report:
 
 ```bash
 defeat-watermarker-ui artifact.jpg \
@@ -77,19 +84,39 @@ defeat-watermarker-ui artifact.jpg \
   --json-output .defeat-watermarker/evidence.json
 ```
 
-Or inspect only the detector/model output without executing attacks:
+Or inspect only detector/model output and save a content-addressed scan record:
 
 ```bash
-defeat-watermarker-ui artifact.jpg --scan-only
+defeat-watermarker-ui artifact.jpg \
+  --scan-only \
+  --json-output scan.json
+
+defeat-watermarker-scan-verify scan.json
 ```
 
-List the attack suites carried inside the installed package:
+List built-in suites and installed detector plugins:
 
 ```bash
 defeat-watermarker-ui --list-builtins
+defeat-watermarker-ui --list-detector-plugins
 ```
 
-See [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md) for the full console workflow.
+See [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md).
+
+## Provider detector plugins
+
+Detector extensions are explicit, read-only Python entry points. Discovery does not import plugin code; execution requires the exact plugin name:
+
+```bash
+defeat-watermarker-ui artifact.txt \
+  --media-type text/plain \
+  --detector-plugin provider-text-v1 \
+  --json-output evidence.json
+```
+
+The same `--detector-plugin` option is available on lower-level `scan`/`evaluate` paths and on the batch runner. There is intentionally no external mutation-plugin entry point.
+
+See [`docs/DETECTOR_PLUGINS.md`](docs/DETECTOR_PLUGINS.md).
 
 ## Anti-watermark attack workflow
 
@@ -115,14 +142,51 @@ An attack report can show, for example, that a mark remained detectable while it
 
 The transformed media itself is not emitted by the evaluator. Evidence records derivative hashes/runtime identity so results can be compared without publishing a derivative selected for detector failure.
 
-See [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md) for the threat model.
+See [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md).
+
+## Batch regression
+
+Run a bounded local corpus through automatic fixed suites:
+
+```bash
+defeat-watermarker-batch ./corpus \
+  --output-dir /tmp/dwm-batch
+```
+
+Known image/audio/video/text files run their built-in suites. Unsupported modalities fall back to detector-only scan evidence. Force scan-only mode for every file with `--scan-only`.
+
+Verify the batch index **and every referenced scan/evaluation record**:
+
+```bash
+defeat-watermarker-batch-verify /tmp/dwm-batch
+```
+
+Batch runs are capped at 64 files / 256 MiB source data, skip symlink files, reject symlink roots, require recursion explicitly, and refuse stale/self-ingesting output directories.
+
+See [`docs/BATCH.md`](docs/BATCH.md).
+
+## Static HTML reports
+
+Verified evidence can be rendered locally without starting a service:
+
+```bash
+defeat-watermarker-report evidence.json --output report.html
+defeat-watermarker-report scan.json --output scan-report.html
+defeat-watermarker-report /tmp/dwm-batch --output batch-report.html
+```
+
+The renderer verifies the input first. Reports contain no JavaScript, remote resources, source bytes or derivative bytes, and all evidence-originated text is HTML escaped.
+
+See [`docs/REPORTS.md`](docs/REPORTS.md).
 
 ## General CLI
 
-The normal CLI exposes the lower-level primitives directly:
+The lower-level CLI exposes the underlying primitives directly:
 
 ```bash
-defeat-watermarker scan asset.jpg --media-type image/jpeg
+defeat-watermarker scan asset.jpg \
+  --media-type image/jpeg \
+  --output scan.json
 
 defeat-watermarker suite validate suites/image-platform-v0.1.json
 
@@ -144,6 +208,21 @@ defeat-watermarker scan asset.jpg \
 ```
 
 Remote C2PA manifest fetching remains disabled in the normal verifier unless a separate bounded resolver workflow is explicitly configured.
+
+## Real C2PA regression
+
+The C2PA CI job generates fresh ephemeral P-256 signing credentials, signs a deterministic JPEG through the official SDK, verifies it through the normal console path, then flips one JPEG scan-data byte while preserving the embedded manifest container.
+
+The expected distinction is:
+
+```text
+signed original: signing credential trusted + claim signature validated + hard binding matched
+tampered copy:   manifest remains discoverable, but hard-binding validation fails => invalid
+```
+
+Private keys and the generated media are not uploaded as CI artifacts. Public certificates and JSON evidence are retained for diagnostics.
+
+See [`fixtures/c2pa/README.md`](fixtures/c2pa/README.md) and [`docs/C2PA.md`](docs/C2PA.md).
 
 ## CI attack gates
 
@@ -192,6 +271,8 @@ Evaluation evidence binds:
 - requested gate policy/result;
 - a deterministic evidence ID over the full evidence core.
 
+Detector-only scan evidence similarly binds source reference, detector runtime identity and exact results into a deterministic `scan_id`. Batch indexes bind the per-artifact record IDs into `batch_id`; the batch verifier then verifies each referenced record independently.
+
 This makes anti-watermark experiments reproducible and auditable without turning the result channel into a cleaned-media export mechanism.
 
 ## Design boundary
@@ -200,4 +281,4 @@ The project is adversarial, but the core does not implement detector-gradient ac
 
 This boundary is intentional: fixed hostile attacks can be replayed across implementations and used to improve marking robustness, while adaptive stripping/evasion would instead turn the framework into provenance-bypass tooling.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md), [`docs/DETECTOR_PLUGINS.md`](docs/DETECTOR_PLUGINS.md), [`docs/BATCH.md`](docs/BATCH.md), [`docs/REPORTS.md`](docs/REPORTS.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
