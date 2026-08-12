@@ -51,6 +51,9 @@ def test_fixed_corpus_reports_false_positive_and_negative_rates(tmp_path) -> Non
     assert report.summary.true_negative == 1
     assert report.summary.false_positive_rate == 0.0
     assert report.summary.false_negative_rate == 0.0
+    assert report.schema_version == "0.2"
+    assert any(item.startswith("adapter_id=") for item in report.adapter_runtime)
+    assert any(item.startswith("python=") for item in report.adapter_runtime)
     assert len(report.report_id) == 64
     assert "header c2pa footer" not in repr(report.to_dict())
 
