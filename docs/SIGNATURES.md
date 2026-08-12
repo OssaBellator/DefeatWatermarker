@@ -13,28 +13,30 @@ pip install -e '.[signing]'
 Use an unencrypted Ed25519 private key in PEM/PKCS#8 form:
 
 ```bash
-defeat-watermarker-evidence-signature sign evidence.json \
+defeat-watermarker-signature sign evidence.json \
   --private-key release-ed25519.pem \
   --key-id release-2026 \
   --output evidence.sig.json
 ```
 
-The signer first performs normal evidence self-consistency verification. It then signs a domain-separated message containing the 32-byte evidence ID. Invalid or internally inconsistent evidence is not signed.
+Omit `--output` to emit the detached signature JSON to stdout. The signer first performs normal evidence self-consistency verification, so invalid or internally inconsistent evidence is not signed.
 
 The detached signature document records the content-addressed `signature_id`, evidence ID, human-managed key ID, public-key SHA-256 fingerprint, algorithm and base64 signature. Private-key bytes are never serialized.
 
-On POSIX systems the signing command refuses a private-key file that is group/world readable or writable. The command also refuses an output path that aliases either the evidence input or the private-key input, preventing accidental overwrite of signing material.
+On POSIX systems the signing command refuses a private-key file that is group/world readable or writable. When `--output` is supplied, the command also refuses a path that aliases either the evidence input or the private-key input, preventing accidental overwrite of signing material.
 
 ## Verify
 
 ```bash
-defeat-watermarker-evidence-signature verify \
+defeat-watermarker-signature verify \
   evidence.json \
   evidence.sig.json \
   --public-key release-ed25519.pub.pem
 ```
 
-Verification checks the evidence document, detached signature document, public-key fingerprint and Ed25519 signature. A valid verification returns exit code `0`; a cryptographic or fingerprint mismatch returns exit code `4`. Malformed input uses the normal argparse error path.
+Verification checks the evidence document, detached signature document, public-key fingerprint and Ed25519 signature. By default the verification JSON is emitted to stdout; `--output` writes it atomically to a file.
+
+A valid verification returns exit code `0`; a cryptographic or fingerprint mismatch returns exit code `8`. Malformed input uses the normal argparse error path.
 
 The current implementation accepts unencrypted PEM Ed25519 private keys. Deployments with stronger key-management requirements should place signing behind an HSM/KMS-backed release step rather than copying private material into automation workspaces.
 
@@ -42,10 +44,10 @@ A valid signature proves only that the holder of the corresponding key signed th
 
 ## Local regression
 
-The optional local signing suite exercises both the library and CLI paths with ephemeral keys:
+The optional local signing suite exercises both the library and canonical CLI paths with ephemeral keys:
 
 ```bash
 bash scripts/test/signing.sh
 ```
 
-The tests cover successful sign/verify, wrong-key rejection, private-material exclusion and input-overwrite protection.
+The tests cover successful sign/verify, stdout/file output, wrong-key rejection, private-material exclusion and input-overwrite protection.
