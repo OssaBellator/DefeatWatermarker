@@ -108,6 +108,15 @@ class GatePolicy:
         if self.min_evaluated_comparisons < 1:
             raise ValueError("min_evaluated_comparisons must be positive")
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "min_survival_rate": self.min_survival_rate,
+            "min_verification_survival_rate": self.min_verification_survival_rate,
+            "min_trust_survival_rate": self.min_trust_survival_rate,
+            "min_provenance_id_preservation_rate": self.min_provenance_id_preservation_rate,
+            "min_evaluated_comparisons": self.min_evaluated_comparisons,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class GateResult:

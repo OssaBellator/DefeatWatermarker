@@ -9,8 +9,13 @@ from .adapters.c2pa import C2paPythonBackend, C2paTrustPolicy, C2paVerifierAdapt
 from .adapters.metadata import ContainerHintAdapter
 from .capabilities import capability_document
 from .engine import RobustnessEngine
-from .evidence import build_evidence_bundle
-from .metrics import GatePolicy, apply_gate, summarize_report
+from .evidence import (
+    EvidenceError,
+    build_evidence_bundle,
+    load_evidence_document,
+    verify_evidence_document,
+)
+from .metrics import GatePolicy, GateStatus, apply_gate, summarize_report
 from .models import Artifact, Modality
 from .mutations import (
     ByteCopyMutation,
@@ -74,7 +79,6 @@ def _registry(trust_anchors_path: Path | None = None) -> AdapterRegistry:
 
 
 def _mutations():
-    # Image mutation classes import Pillow only when applied. This keeps the core dependency-free.
     return [
         IdentityMutation(),
         ByteCopyMutation(),
@@ -120,6 +124,14 @@ def _validate_suite(path: Path) -> int:
     return 0
 
 
+def _verify_evidence(path: Path, suite_path: Path | None) -> int:
+    payload = load_evidence_document(path)
+    suite = load_suite(suite_path) if suite_path is not None else None
+    result = verify_evidence_document(payload, suite=suite)
+    _emit(result.to_dict(), None)
+    return 0 if result.valid else 4
+
+
 def _evaluate(
     path: Path,
     suite_path: Path,
@@ -141,8 +153,6 @@ def _evaluate(
     engine = RobustnessEngine(_registry(c2pa_trust_anchors), _mutations())
     report = engine.evaluate(artifact, suite.scenarios)
     summary = summarize_report(report)
-    evidence = build_evidence_bundle(artifact, suite, report, summary)
-    payload = evidence.to_dict()
 
     thresholds = (
         min_survival_rate,
@@ -150,24 +160,31 @@ def _evaluate(
         min_trust_survival_rate,
         min_provenance_id_preservation_rate,
     )
+    gate_policy = None
+    gate = None
     exit_code = 0
     if any(value is not None for value in thresholds):
-        gate = apply_gate(
-            summary,
-            GatePolicy(
-                min_survival_rate=min_survival_rate,
-                min_verification_survival_rate=min_verification_survival_rate,
-                min_trust_survival_rate=min_trust_survival_rate,
-                min_provenance_id_preservation_rate=min_provenance_id_preservation_rate,
-            ),
+        gate_policy = GatePolicy(
+            min_survival_rate=min_survival_rate,
+            min_verification_survival_rate=min_verification_survival_rate,
+            min_trust_survival_rate=min_trust_survival_rate,
+            min_provenance_id_preservation_rate=min_provenance_id_preservation_rate,
         )
-        payload["gate"] = gate.to_dict()
-        if gate.status.value == "fail":
+        gate = apply_gate(summary, gate_policy)
+        if gate.status is GateStatus.FAIL:
             exit_code = 2
-        elif gate.status.value == "indeterminate":
+        elif gate.status is GateStatus.INDETERMINATE:
             exit_code = 3
 
-    _emit(payload, output)
+    evidence = build_evidence_bundle(
+        artifact,
+        suite,
+        report,
+        summary,
+        gate_policy=gate_policy,
+        gate=gate,
+    )
+    _emit(evidence.to_dict(), output)
     return exit_code
 
 
@@ -192,6 +209,12 @@ def build_parser() -> argparse.ArgumentParser:
     suite_subparsers = suite.add_subparsers(dest="suite_command", required=True)
     validate = suite_subparsers.add_parser("validate", help="validate and digest a suite")
     validate.add_argument("path", type=Path)
+
+    evidence = subparsers.add_parser("evidence", help="verify content-addressed evidence")
+    evidence_subparsers = evidence.add_subparsers(dest="evidence_command", required=True)
+    verify = evidence_subparsers.add_parser("verify", help="verify evidence digests offline")
+    verify.add_argument("path", type=Path)
+    verify.add_argument("--suite", type=Path)
 
     evaluate = subparsers.add_parser(
         "evaluate",
@@ -224,6 +247,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "suite" and args.suite_command == "validate":
             return _validate_suite(args.path)
+        if args.command == "evidence" and args.evidence_command == "verify":
+            return _verify_evidence(args.path, args.suite)
         if args.command == "evaluate":
             return _evaluate(
                 args.path,
@@ -236,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_trust_survival_rate,
                 args.min_provenance_id_preservation_rate,
             )
-    except (OSError, UnicodeError, SuiteError, ValueError, KeyError) as exc:
+    except (OSError, UnicodeError, EvidenceError, SuiteError, ValueError, KeyError) as exc:
         parser.error(str(exc))
     raise AssertionError("unreachable")
 
