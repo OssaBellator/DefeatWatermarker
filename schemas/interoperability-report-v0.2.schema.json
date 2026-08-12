@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/interoperability-report-v0.2.schema.json",
+  "title": "DefeatWatermarker interoperability report v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "schema_version",
+    "matrix_id",
+    "matrix_version",
+    "matrix_digest",
+    "adapter_runtime",
+    "cases",
+    "pairs"
+  ],
+  "properties": {
+    "report_id": {"$ref": "#/$defs/sha256"},
+    "schema_version": {"const": "0.2"},
+    "matrix_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "matrix_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "matrix_digest": {"$ref": "#/$defs/sha256"},
+    "adapter_runtime": {
+      "type": "object",
+      "minProperties": 2,
+      "maxProperties": 16,
+      "additionalProperties": {"$ref": "#/$defs/runtime"}
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "artifact_sha256", "byte_length", "observations"],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "artifact_sha256": {"$ref": "#/$defs/sha256"},
+          "byte_length": {"type": "integer", "minimum": 0},
+          "observations": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 16,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "adapter_id",
+                "supported",
+                "family",
+                "detected",
+                "confidence",
+                "verification_state",
+                "provenance_identifier"
+              ],
+              "properties": {
+                "adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                "supported": {"type": "boolean"},
+                "family": {
+                  "oneOf": [
+                    {"type": "null"},
+                    {"enum": ["metadata", "signed_provenance", "perceptual", "statistical", "fingerprint", "registry", "hardware_attestation", "unknown"]}
+                  ]
+                },
+                "detected": {"oneOf": [{"type": "null"}, {"type": "boolean"}]},
+                "confidence": {
+                  "oneOf": [
+                    {"type": "null"},
+                    {"type": "number", "minimum": 0, "maximum": 1}
+                  ]
+                },
+                "verification_state": {
+                  "oneOf": [
+                    {"type": "null"},
+                    {"$ref": "#/$defs/verification_state"}
+                  ]
+                },
+                "provenance_identifier": {
+                  "oneOf": [{"type": "null"}, {"type": "string", "maxLength": 4096}]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "pairs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 120,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "left_adapter_id",
+          "right_adapter_id",
+          "comparable_cases",
+          "detection_agreements",
+          "detection_disagreements",
+          "agreement_rate",
+          "both_detected",
+          "both_not_detected"
+        ],
+        "properties": {
+          "left_adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "right_adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "comparable_cases": {"type": "integer", "minimum": 0},
+          "detection_agreements": {"type": "integer", "minimum": 0},
+          "detection_disagreements": {"type": "integer", "minimum": 0},
+          "agreement_rate": {"$ref": "#/$defs/nullable_rate"},
+          "both_detected": {"type": "integer", "minimum": 0},
+          "both_not_detected": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "runtime": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {"type": "string", "minLength": 1, "maxLength": 512}
+    },
+    "nullable_rate": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "number", "minimum": 0, "maximum": 1}
+      ]
+    },
+    "verification_state": {
+      "enum": ["not_evaluated", "well_formed", "valid", "trusted", "invalid", "error"]
+    }
+  }
+}
