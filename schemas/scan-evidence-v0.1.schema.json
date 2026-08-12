@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/scan-evidence-v0.1.schema.json",
+  "title": "DefeatWatermarker scan evidence v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scan_id",
+    "schema_version",
+    "artifact",
+    "adapter_runtime",
+    "results"
+  ],
+  "properties": {
+    "scan_id": {"$ref": "#/$defs/sha256"},
+    "schema_version": {"const": "0.1"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "byte_length", "media_type", "modality"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 255},
+        "modality": {
+          "enum": ["image", "video", "audio", "text", "document", "binary", "unknown"]
+        }
+      }
+    },
+    "adapter_runtime": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "maxItems": 16,
+        "items": {"type": "string", "maxLength": 512}
+      }
+    },
+    "results": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {"type": "object"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
