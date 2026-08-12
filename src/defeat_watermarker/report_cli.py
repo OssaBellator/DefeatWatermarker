@@ -11,8 +11,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-report",
         description=(
-            "Render verified scan evidence, attack evidence, or a verified batch directory "
-            "as a self-contained local HTML report."
+            "Render verified scan, attack, benchmark or detector-conformance evidence, "
+            "or a verified batch directory, as a self-contained local HTML report."
         ),
     )
     parser.add_argument("input", type=Path)
