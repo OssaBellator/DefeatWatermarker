@@ -31,6 +31,37 @@ def test_ui_scan_only_prints_detector_output(tmp_path: Path, capsys) -> None:
     assert "scan only" in output
 
 
+def test_ui_scan_only_writes_content_addressed_json(tmp_path: Path, capsys) -> None:
+    artifact = tmp_path / "sample.txt"
+    artifact.write_text("C2PA fixture scan\n", encoding="utf-8")
+    scan_path = tmp_path / "scan.json"
+
+    assert (
+        main(
+            [
+                str(artifact),
+                "--media-type",
+                "text/plain",
+                "--scan-only",
+                "--json-output",
+                str(scan_path),
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert "Full JSON scan result:" in output
+    assert "Scan ID:" in output
+
+    payload = json.loads(scan_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "0.1"
+    assert len(payload["scan_id"]) == 64
+    assert len(payload["artifact"]["sha256"]) == 64
+    assert payload["artifact"]["byte_length"] == artifact.stat().st_size
+    assert payload["artifact"]["media_type"] == "text/plain"
+    assert "data" not in payload["artifact"]
+
+
 def test_ui_runs_builtin_text_attack_and_writes_evidence(tmp_path: Path, capsys) -> None:
     artifact = tmp_path / "sample.txt"
     artifact.write_bytes(b"Cafe\xcc\x81  \r\nsecond line\t\r\n")
