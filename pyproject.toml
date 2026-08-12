@@ -22,6 +22,7 @@ dev = ["pytest>=8,<9", "Pillow>=12.3,<13"]
 defeat-watermarker = "defeat_watermarker.cli:main"
 defeat-watermarker-attack = "defeat_watermarker.attack_cli:main"
 defeat-watermarker-ui = "defeat_watermarker.ui_cli:main"
+defeat-watermarker-scan-verify = "defeat_watermarker.scan_cli:main"
 
 [tool.uv]
 exclude-newer = "2026-08-12T10:45:00Z"
