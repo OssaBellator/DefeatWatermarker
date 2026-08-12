@@ -15,6 +15,7 @@ from .evidence import (
     load_evidence_document,
     verify_evidence_document,
 )
+from .interoperability import InteroperabilityError, run_interoperability_matrix
 from .io_utils import atomic_write_text, read_bounded_bytes
 from .metrics import GatePolicy, GateStatus, apply_gate, summarize_report
 from .models import Artifact, Modality
@@ -111,12 +112,7 @@ def _mutations():
     ]
 
 
-def _scan(
-    path: Path,
-    media_type: str,
-    output: Path | None,
-    c2pa_trust_anchors: Path | None,
-) -> int:
+def _scan(path: Path, media_type: str, output: Path | None, trust: Path | None) -> int:
     artifact = Artifact(
         data=read_bounded_bytes(path),
         media_type=media_type,
@@ -125,7 +121,7 @@ def _scan(
     )
     results = [
         adapter.detect(artifact).to_dict()
-        for adapter in _registry(c2pa_trust_anchors)
+        for adapter in _registry(trust)
         if adapter.supports(artifact)
     ]
     _emit({"artifact_name": artifact.name, "results": results}, output)
@@ -178,12 +174,14 @@ def _assess_profile(path: Path, suite_paths: list[Path]) -> int:
     return 0 if assessment.status is ReadinessStatus.READY else 5
 
 
-def _run_reliability(
-    corpus_path: Path,
-    output: Path | None,
-    c2pa_trust_anchors: Path | None,
-) -> int:
-    report = run_reliability_benchmark(corpus_path, _registry(c2pa_trust_anchors))
+def _run_reliability(corpus_path: Path, output: Path | None, trust: Path | None) -> int:
+    report = run_reliability_benchmark(corpus_path, _registry(trust))
+    _emit(report.to_dict(), output)
+    return 0
+
+
+def _run_interoperability(matrix_path: Path, output: Path | None, trust: Path | None) -> int:
+    report = run_interoperability_matrix(matrix_path, _registry(trust))
     _emit(report.to_dict(), output)
     return 0
 
@@ -193,7 +191,7 @@ def _evaluate(
     suite_path: Path,
     media_type: str,
     output: Path | None,
-    c2pa_trust_anchors: Path | None,
+    trust: Path | None,
     min_survival_rate: float | None,
     min_verification_survival_rate: float | None,
     min_trust_survival_rate: float | None,
@@ -206,10 +204,9 @@ def _evaluate(
         name=path.name,
         modality=_infer_modality(media_type),
     )
-    engine = RobustnessEngine(_registry(c2pa_trust_anchors), _mutations())
+    engine = RobustnessEngine(_registry(trust), _mutations())
     report = engine.evaluate(artifact, suite.scenarios)
     summary = summarize_report(report)
-
     thresholds = (
         min_survival_rate,
         min_verification_survival_rate,
@@ -231,14 +228,8 @@ def _evaluate(
             exit_code = 2
         elif gate.status is GateStatus.INDETERMINATE:
             exit_code = 3
-
     evidence = build_evidence_bundle(
-        artifact,
-        suite,
-        report,
-        summary,
-        gate_policy=gate_policy,
-        gate=gate,
+        artifact, suite, report, summary, gate_policy=gate_policy, gate=gate
     )
     _emit(evidence.to_dict(), output)
     return exit_code
@@ -250,55 +241,47 @@ def build_parser() -> argparse.ArgumentParser:
         description="Defensive AI watermark/provenance robustness lab",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("capabilities", help="show adapters/mutations and dependency state")
 
-    subparsers.add_parser(
-        "capabilities", help="show built-in adapters/mutations and optional dependency state"
-    )
-
-    scan = subparsers.add_parser("scan", help="inspect an artifact for known provenance hints")
+    scan = subparsers.add_parser("scan", help="inspect an artifact for provenance signals")
     scan.add_argument("path", type=Path)
     scan.add_argument("--media-type", default="application/octet-stream")
     scan.add_argument("--output", type=Path)
     scan.add_argument("--c2pa-trust-anchors", type=Path)
 
     suite = subparsers.add_parser("suite", help="work with immutable robustness suites")
-    suite_subparsers = suite.add_subparsers(dest="suite_command", required=True)
-    validate = suite_subparsers.add_parser("validate", help="validate and digest a suite")
+    suite_sub = suite.add_subparsers(dest="suite_command", required=True)
+    validate = suite_sub.add_parser("validate", help="validate and digest a suite")
     validate.add_argument("path", type=Path)
 
     evidence = subparsers.add_parser("evidence", help="verify content-addressed evidence")
-    evidence_subparsers = evidence.add_subparsers(dest="evidence_command", required=True)
-    verify = evidence_subparsers.add_parser("verify", help="verify evidence digests offline")
+    evidence_sub = evidence.add_subparsers(dest="evidence_command", required=True)
+    verify = evidence_sub.add_parser("verify", help="verify evidence digests offline")
     verify.add_argument("path", type=Path)
     verify.add_argument("--suite", type=Path)
 
-    profile = subparsers.add_parser(
-        "profile", help="validate and assess versioned engineering-readiness profiles"
-    )
-    profile_subparsers = profile.add_subparsers(dest="profile_command", required=True)
-    profile_validate = profile_subparsers.add_parser(
-        "validate", help="validate and digest an engineering profile"
-    )
+    profile = subparsers.add_parser("profile", help="assess engineering-readiness profiles")
+    profile_sub = profile.add_subparsers(dest="profile_command", required=True)
+    profile_validate = profile_sub.add_parser("validate", help="validate and digest a profile")
     profile_validate.add_argument("path", type=Path)
-    profile_assess = profile_subparsers.add_parser(
-        "assess", help="assess capabilities and fixed-suite modality coverage"
-    )
+    profile_assess = profile_sub.add_parser("assess", help="assess capabilities/suite coverage")
     profile_assess.add_argument("path", type=Path)
     profile_assess.add_argument("--suite", type=Path, action="append", default=[])
 
     benchmark = subparsers.add_parser("benchmark", help="run fixed detector benchmarks")
-    benchmark_subparsers = benchmark.add_subparsers(dest="benchmark_command", required=True)
-    reliability = benchmark_subparsers.add_parser(
-        "reliability", help="evaluate false positives/negatives on a fixed labelled corpus"
-    )
+    benchmark_sub = benchmark.add_subparsers(dest="benchmark_command", required=True)
+    reliability = benchmark_sub.add_parser("reliability", help="run a labelled reliability corpus")
     reliability.add_argument("corpus", type=Path)
     reliability.add_argument("--output", type=Path)
     reliability.add_argument("--c2pa-trust-anchors", type=Path)
-
-    evaluate = subparsers.add_parser(
-        "evaluate",
-        help="run a predefined suite and emit content-addressed evidence",
+    interoperability = benchmark_sub.add_parser(
+        "interoperability", help="run a fixed multi-adapter agreement matrix"
     )
+    interoperability.add_argument("matrix", type=Path)
+    interoperability.add_argument("--output", type=Path)
+    interoperability.add_argument("--c2pa-trust-anchors", type=Path)
+
+    evaluate = subparsers.add_parser("evaluate", help="run a predefined robustness suite")
     evaluate.add_argument("path", type=Path)
     evaluate.add_argument("--suite", type=Path, required=True)
     evaluate.add_argument("--media-type", default="application/octet-stream")
@@ -318,12 +301,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit(capability_document(), None)
             return 0
         if args.command == "scan":
-            return _scan(
-                args.path,
-                args.media_type,
-                args.output,
-                args.c2pa_trust_anchors,
-            )
+            return _scan(args.path, args.media_type, args.output, args.c2pa_trust_anchors)
         if args.command == "suite" and args.suite_command == "validate":
             return _validate_suite(args.path)
         if args.command == "evidence" and args.evidence_command == "verify":
@@ -333,11 +311,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "profile" and args.profile_command == "assess":
             return _assess_profile(args.path, args.suite)
         if args.command == "benchmark" and args.benchmark_command == "reliability":
-            return _run_reliability(
-                args.corpus,
-                args.output,
-                args.c2pa_trust_anchors,
-            )
+            return _run_reliability(args.corpus, args.output, args.c2pa_trust_anchors)
+        if args.command == "benchmark" and args.benchmark_command == "interoperability":
+            return _run_interoperability(args.matrix, args.output, args.c2pa_trust_anchors)
         if args.command == "evaluate":
             return _evaluate(
                 args.path,
@@ -354,6 +330,7 @@ def main(argv: list[str] | None = None) -> int:
         OSError,
         UnicodeError,
         EvidenceError,
+        InteroperabilityError,
         ProfileError,
         ReliabilityError,
         SuiteError,

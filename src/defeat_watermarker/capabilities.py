@@ -69,11 +69,18 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             modalities=(Modality.UNKNOWN,),
         ),
         ComponentCapability(
+            component_id="interoperability.matrix-runner.v1",
+            component_type="benchmark",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            notes="Runs fixed pairwise detector agreement matrices; does not itself prove interoperability.",
+        ),
+        ComponentCapability(
             component_id="interoperability.matrix.v1",
-            component_type="planned",
+            component_type="evidence-gap",
             available=False,
             modalities=(Modality.UNKNOWN,),
-            notes="Requires multiple independent detector/provider implementations and versioned comparison fixtures.",
+            notes="Requires representative independent implementations and reviewed interoperability fixtures.",
         ),
         ComponentCapability(
             component_id="reliability.false-positive-negative.v1",
