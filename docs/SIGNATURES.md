@@ -21,7 +21,7 @@ defeat-watermarker-signature sign evidence.json \
 
 Omit `--output` to emit the detached signature JSON to stdout. The signer first performs normal evidence self-consistency verification, so invalid or internally inconsistent evidence is not signed.
 
-The detached signature document records the content-addressed `signature_id`, evidence ID, human-managed key ID, public-key SHA-256 fingerprint, algorithm and base64 signature. Private-key bytes are never serialized.
+The detached signature document records the content-addressed `signature_id`, evidence ID, human-managed key ID, public-key SHA-256 fingerprint, algorithm and base64 signature. Ed25519 signature payloads are required to be exactly 64 bytes, and private-key bytes are never serialized.
 
 On POSIX systems the signing command refuses a private-key file that is group/world readable or writable. When `--output` is supplied, the command also refuses a path that aliases either the evidence input or the private-key input, preventing accidental overwrite of signing material.
 
@@ -34,7 +34,7 @@ defeat-watermarker-signature verify \
   --public-key release-ed25519.pub.pem
 ```
 
-Verification checks the evidence document, detached signature document, public-key fingerprint and Ed25519 signature. By default the verification JSON is emitted to stdout; `--output` writes it atomically to a file.
+Verification checks the evidence document, detached signature document, public-key fingerprint and Ed25519 signature. By default the verification JSON is emitted to stdout; `--output` writes it atomically to a file. A verification output is not allowed to alias the evidence, detached-signature, or public-key input.
 
 A valid verification returns exit code `0`; a cryptographic or fingerprint mismatch returns exit code `8`. Malformed input uses the normal argparse error path.
 
@@ -50,4 +50,4 @@ The optional local signing suite exercises both the library and canonical CLI pa
 bash scripts/test/signing.sh
 ```
 
-The tests cover successful sign/verify, stdout/file output, wrong-key rejection, private-material exclusion and input-overwrite protection.
+The tests cover successful sign/verify, stdout/file output, wrong-key rejection, strict detached-document parsing, private-material exclusion and input-overwrite protection.
