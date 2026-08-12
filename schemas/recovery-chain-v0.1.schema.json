@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/recovery-chain-v0.1.schema.json",
+  "title": "DefeatWatermarker provenance recovery chain v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "recovery_id",
+    "schema_version",
+    "artifact",
+    "binding",
+    "resolver_id",
+    "verification_status",
+    "candidates",
+    "warnings"
+  ],
+  "properties": {
+    "recovery_id": {"$ref": "#/$defs/sha256"},
+    "schema_version": {"const": "0.1"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "byte_length", "media_type"],
+      "properties": {
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 255}
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["extractor_id", "kind", "algorithm", "query_digest", "value_length"],
+      "properties": {
+        "extractor_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "kind": {"enum": ["watermark", "fingerprint", "other"]},
+        "algorithm": {"type": "string", "minLength": 1, "maxLength": 512},
+        "query_digest": {"$ref": "#/$defs/sha256"},
+        "value_length": {"type": "integer", "minimum": 1, "maximum": 4096}
+      }
+    },
+    "resolver_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "verification_status": {"const": "candidate_only"},
+    "candidates": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["manifest_id", "endpoint", "similarity_score", "fetched_manifest"],
+        "properties": {
+          "manifest_id": {"type": "string", "minLength": 1, "maxLength": 4096},
+          "endpoint": {"type": ["string", "null"]},
+          "similarity_score": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+          "fetched_manifest": {
+            "oneOf": [
+              {"type": "null"},
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["sha256", "byte_length", "media_type"],
+                "properties": {
+                  "sha256": {"$ref": "#/$defs/sha256"},
+                  "byte_length": {"type": "integer", "minimum": 0},
+                  "media_type": {"const": "application/c2pa"}
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
