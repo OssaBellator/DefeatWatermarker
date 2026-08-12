@@ -28,6 +28,7 @@ The current implementation includes:
 - labelled false-positive/false-negative reliability benchmarking;
 - fixed multi-adapter interoperability matrices;
 - regression baselines and CI-style pass/fail/indeterminate gates;
+- a guided console UI for artifact input and human-readable detector/attack output;
 - an EU Article 50(2) provider-marking engineering-readiness profile that reports gaps rather than legal compliance.
 
 ## Install
@@ -51,6 +52,44 @@ Inspect the current detector and mutation environment:
 ```bash
 defeat-watermarker capabilities
 ```
+
+## Guided console UI
+
+For the simplest artifact-in/results-out workflow, use:
+
+```bash
+defeat-watermarker-ui artifact.png
+```
+
+The UI infers the media type, shows the baseline detector/model output, auto-selects the built-in fixed attack suite for image/audio/video/text, and prints the post-attack confidence and assurance changes.
+
+Run it without arguments in an interactive terminal to be prompted for the artifact path:
+
+```bash
+defeat-watermarker-ui
+```
+
+Save the complete machine-readable evidence bundle while keeping the human-readable console report:
+
+```bash
+defeat-watermarker-ui artifact.jpg \
+  --media-type image/jpeg \
+  --json-output .defeat-watermarker/evidence.json
+```
+
+Or inspect only the detector/model output without executing attacks:
+
+```bash
+defeat-watermarker-ui artifact.jpg --scan-only
+```
+
+List the attack suites carried inside the installed package:
+
+```bash
+defeat-watermarker-ui --list-builtins
+```
+
+See [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md) for the full console workflow.
 
 ## Anti-watermark attack workflow
 
@@ -161,4 +200,4 @@ The project is adversarial, but the core does not implement detector-gradient ac
 
 This boundary is intentional: fixed hostile attacks can be replayed across implementations and used to improve marking robustness, while adaptive stripping/evasion would instead turn the framework into provenance-bypass tooling.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ANTI_WATERMARKER.md`](docs/ANTI_WATERMARKER.md), [`docs/CONSOLE_UI.md`](docs/CONSOLE_UI.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RECOVERY.md`](docs/RECOVERY.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).
