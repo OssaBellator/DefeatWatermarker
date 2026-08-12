@@ -1,3 +1,5 @@
+import pytest
+
 from defeat_watermarker.adapters.base import WatermarkAdapter
 from defeat_watermarker.engine import RobustnessEngine
 from defeat_watermarker.models import Artifact, DetectionResult, MarkFamily, Modality, MutationScenario
@@ -25,6 +27,36 @@ class ExternalAdapter:
 
 
 ExternalAdapter.__module__ = "provider_detector.adapter"
+
+
+class ConfiguredExternalAdapter:
+    adapter_id = "provider.configured.v1"
+
+    def runtime_identity(self):
+        return ("model=checkpoint-7", "threshold-profile=balanced-v2")
+
+
+ConfiguredExternalAdapter.__module__ = "provider_detector.adapter"
+
+
+class InvalidRuntimeAdapter:
+    adapter_id = "provider.invalid-runtime.v1"
+
+    def runtime_identity(self):
+        return ("bad\nidentity",)
+
+
+InvalidRuntimeAdapter.__module__ = "provider_detector.adapter"
+
+
+class TooManyRuntimeItemsAdapter:
+    adapter_id = "provider.too-many-runtime-items.v1"
+
+    def runtime_identity(self):
+        return tuple(f"item={index}" for index in range(9))
+
+
+TooManyRuntimeItemsAdapter.__module__ = "provider_detector.adapter"
 
 
 class BuiltinAdapter:
@@ -70,6 +102,42 @@ def test_external_adapter_runtime_binds_distribution_version(monkeypatch) -> Non
     identity = adapter_runtime_identity(ExternalAdapter())
 
     assert "plugin-distribution=provider-detector==2.4.1" in identity
+
+
+def test_provider_runtime_hook_binds_model_configuration(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "defeat_watermarker.runtime.metadata.packages_distributions",
+        lambda: {"provider_detector": ["provider-detector"]},
+    )
+    monkeypatch.setattr(
+        "defeat_watermarker.runtime.metadata.version",
+        lambda name: "2.4.1" if name == "provider-detector" else "0.1.0",
+    )
+
+    identity = adapter_runtime_identity(ConfiguredExternalAdapter())
+
+    assert "adapter-runtime=model=checkpoint-7" in identity
+    assert "adapter-runtime=threshold-profile=balanced-v2" in identity
+
+
+def test_provider_runtime_hook_rejects_invalid_identity(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "defeat_watermarker.runtime.metadata.packages_distributions",
+        lambda: {},
+    )
+
+    with pytest.raises(ValueError, match="invalid identity data"):
+        adapter_runtime_identity(InvalidRuntimeAdapter())
+
+
+def test_provider_runtime_hook_rejects_unbounded_identity(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "defeat_watermarker.runtime.metadata.packages_distributions",
+        lambda: {},
+    )
+
+    with pytest.raises(ValueError, match="exceeds 8 entries"):
+        adapter_runtime_identity(TooManyRuntimeItemsAdapter())
 
 
 def test_builtin_adapter_does_not_duplicate_package_distribution(monkeypatch) -> None:
