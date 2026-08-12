@@ -51,6 +51,27 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             modalities=(Modality.UNKNOWN,),
         ),
         ComponentCapability(
+            component_id="evidence.local-test-run.v1",
+            component_type="framework",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            notes=(
+                "Content-addressed local validation record binds selected suite, Git commit "
+                "when available, Python runtime and every attempted command/return code."
+            ),
+        ),
+        ComponentCapability(
+            component_id="detector.conformance.read-only.v1",
+            component_type="framework",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            notes=(
+                "Explicit detector-plugin qualification checks read-only capability, stable "
+                "runtime identity, deterministic detection, source immutability and strict "
+                "DetectionResult evidence without loading mutation logic."
+            ),
+        ),
+        ComponentCapability(
             component_id="suite.detector-blind-fixed.v1",
             component_type="framework",
             available=True,
