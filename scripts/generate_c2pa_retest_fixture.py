@@ -75,6 +75,7 @@ def _sign_jpeg(source: Path, output: Path, chain: Path, private_key: Path) -> st
         alg=C2paSigningAlg.ES256,
         sign_cert=chain.read_bytes(),
         private_key=private_key.read_bytes(),
+        ta_url=None,
     )
     with Context() as context:
         with Signer.from_info(signer_info) as signer:
