@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .builtin_suites import builtin_suite_catalog, builtin_suite_for
 from .cli import _infer_modality, _mutations, _registry
+from .detector_plugins import discover_detector_plugins, load_detector_plugins
 from .engine import RobustnessEngine
 from .evidence import build_evidence_bundle
 from .io_utils import atomic_write_text, read_bounded_bytes
@@ -162,6 +163,7 @@ def _run(
     scan_only: bool,
     json_output: Path | None,
     trust_anchors: Path | None,
+    detector_plugins: tuple[str, ...] = (),
 ) -> int:
     artifact = Artifact(
         data=read_bounded_bytes(artifact_path),
@@ -170,6 +172,9 @@ def _run(
         modality=_infer_modality(media_type),
     )
     registry = _registry(trust_anchors)
+    for adapter in load_detector_plugins(detector_plugins):
+        registry.register(adapter)
+
     suite: RobustnessSuite | None = None
     if not scan_only:
         suite = load_suite(suite_path) if suite_path is not None else builtin_suite_for(artifact.modality)
@@ -225,7 +230,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scan-only", action="store_true", help="show detector output without attacks")
     parser.add_argument("--json-output", type=Path, help="write the full evidence bundle as JSON")
     parser.add_argument("--c2pa-trust-anchors", type=Path)
+    parser.add_argument(
+        "--detector-plugin",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="explicitly load one installed read-only detector plugin; repeatable",
+    )
     parser.add_argument("--list-builtins", action="store_true", help="list built-in attack suites")
+    parser.add_argument(
+        "--list-detector-plugins",
+        action="store_true",
+        help="list installed detector entry points without loading them",
+    )
     return parser
 
 
@@ -238,6 +255,14 @@ def main(argv: list[str] | None = None) -> int:
                 modalities = sorted({scenario.modality.value for scenario in suite.scenarios})
                 print(f"{suite.suite_id:<32} {','.join(modalities):<8} {len(suite.scenarios)} scenarios")
             return 0
+        if args.list_detector_plugins:
+            plugins = discover_detector_plugins()
+            if not plugins:
+                print("No detector plugins are installed.")
+            for plugin in plugins:
+                distribution = plugin.distribution or "unknown-distribution"
+                print(f"{plugin.name:<28} {distribution:<36} {plugin.value}")
+            return 0
         artifact = args.artifact if args.artifact is not None else _prompt_path()
         media_type = args.media_type or _guess_media_type(artifact)
         return _run(
@@ -247,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
             scan_only=args.scan_only,
             json_output=args.json_output,
             trust_anchors=args.c2pa_trust_anchors,
+            detector_plugins=tuple(args.detector_plugin),
         )
     except (OSError, UnicodeError, ValueError, KeyError) as exc:
         parser.error(str(exc))
