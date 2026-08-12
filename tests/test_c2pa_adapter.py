@@ -60,6 +60,11 @@ def _store(state: str = "Valid") -> dict[str, Any]:
     }
 
 
+def _with_failure(payload: dict[str, Any], code: str) -> dict[str, Any]:
+    payload["validation_results"]["activeManifest"]["failure"] = [{"code": code}]
+    return payload
+
+
 def test_valid_manifest_is_detected_and_graph_is_bounded_summary() -> None:
     result = C2paVerifierAdapter(backend=FakeBackend(_store())).detect(
         Artifact(data=b"not-used", media_type="image/jpeg")
@@ -88,10 +93,7 @@ def test_trusted_manifest_has_distinct_state() -> None:
 
 
 def test_invalid_manifest_remains_detected_but_not_verified() -> None:
-    payload = _store("Invalid")
-    payload["validation_results"]["activeManifest"]["failure"] = [
-        {"code": "assertion.dataHash.mismatch"}
-    ]
+    payload = _with_failure(_store("Invalid"), "assertion.dataHash.mismatch")
     result = C2paVerifierAdapter(backend=FakeBackend(payload)).detect(
         Artifact(data=b"fixture", media_type="image/jpeg")
     )
@@ -99,6 +101,41 @@ def test_invalid_manifest_remains_detected_but_not_verified() -> None:
     assert result.verification_state is VerificationState.INVALID
     assert result.cryptographically_verified is False
     assert "assertion.dataHash.mismatch" in result.validation_codes
+
+
+def test_expired_signing_credential_vector_is_invalid() -> None:
+    payload = _with_failure(_store("Invalid"), "claimSignature.outsideValidity")
+    result = C2paVerifierAdapter(backend=FakeBackend(payload)).detect(
+        Artifact(data=b"fixture", media_type="image/jpeg")
+    )
+
+    assert result.detected is True
+    assert result.verification_state is VerificationState.INVALID
+    assert result.cryptographically_verified is False
+    assert "claimSignature.outsideValidity" in result.validation_codes
+
+
+def test_inaccessible_external_manifest_vector_is_invalid() -> None:
+    payload = _with_failure(_store("Invalid"), "manifest.inaccessible")
+    result = C2paVerifierAdapter(backend=FakeBackend(payload)).detect(
+        Artifact(data=b"fixture", media_type="image/jpeg")
+    )
+
+    assert result.detected is True
+    assert result.verification_state is VerificationState.INVALID
+    assert result.cryptographically_verified is False
+    assert "manifest.inaccessible" in result.validation_codes
+
+
+def test_explicit_failure_overrides_contradictory_trusted_state() -> None:
+    payload = _with_failure(_store("Trusted"), "claimSignature.outsideValidity")
+    result = C2paVerifierAdapter(backend=FakeBackend(payload)).detect(
+        Artifact(data=b"fixture", media_type="image/jpeg")
+    )
+
+    assert result.verification_state is VerificationState.INVALID
+    assert result.cryptographically_verified is False
+    assert "claimSignature.outsideValidity" in result.validation_codes
 
 
 def test_manifest_not_found_is_clean_negative() -> None:
