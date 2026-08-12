@@ -15,6 +15,7 @@ from .io_utils import read_bounded_bytes
 
 _MAX_KEY_BYTES = 64 * 1024
 _MAX_SIGNATURE_BYTES = 1024 * 1024
+_ED25519_SIGNATURE_BYTES = 64
 _DOMAIN = b"DefeatWatermarker Evidence Signature v1\x00"
 
 
@@ -86,8 +87,16 @@ class EvidenceSignature:
     schema_version: str = "0.1"
 
     def __post_init__(self) -> None:
-        if not self.key_id or len(self.key_id) > 255 or "\x00" in self.key_id:
-            raise SignatureError("key_id is missing, too long, or contains NUL")
+        if (
+            not self.key_id
+            or len(self.key_id) > 255
+            or "\x00" in self.key_id
+            or "\r" in self.key_id
+            or "\n" in self.key_id
+        ):
+            raise SignatureError(
+                "key_id is missing, too long, or contains a control separator"
+            )
         for noun, digest in (
             ("evidence_id", self.evidence_id),
             ("public_key_sha256", self.public_key_sha256),
@@ -98,8 +107,10 @@ class EvidenceSignature:
             raise SignatureError("unsupported signature algorithm")
         if self.schema_version != "0.1":
             raise SignatureError("unsupported signature schema_version")
-        if not self.signature or len(self.signature) > 256:
-            raise SignatureError("signature byte length is invalid")
+        if len(self.signature) != _ED25519_SIGNATURE_BYTES:
+            raise SignatureError(
+                f"Ed25519 signature must contain exactly {_ED25519_SIGNATURE_BYTES} bytes"
+            )
 
     def core_dict(self) -> dict[str, Any]:
         return {
@@ -179,20 +190,29 @@ def signature_from_dict(payload: dict[str, Any]) -> EvidenceSignature:
         if extras:
             raise SignatureError(f"signature has unknown fields: {', '.join(extras)}")
         raise SignatureError(f"signature is missing fields: {', '.join(missing)}")
+    for field in (
+        "signature_id",
+        "schema_version",
+        "algorithm",
+        "key_id",
+        "evidence_id",
+        "public_key_sha256",
+        "signature",
+    ):
+        if not isinstance(payload[field], str):
+            raise SignatureError(f"signature field {field} must be text")
     encoded = payload["signature"]
-    if not isinstance(encoded, str):
-        raise SignatureError("signature must be base64 text")
     try:
         raw = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise SignatureError("signature is not valid base64") from exc
     signature = EvidenceSignature(
-        key_id=str(payload["key_id"]),
-        evidence_id=str(payload["evidence_id"]),
-        public_key_sha256=str(payload["public_key_sha256"]),
+        key_id=payload["key_id"],
+        evidence_id=payload["evidence_id"],
+        public_key_sha256=payload["public_key_sha256"],
         signature=raw,
-        algorithm=str(payload["algorithm"]),
-        schema_version=str(payload["schema_version"]),
+        algorithm=payload["algorithm"],
+        schema_version=payload["schema_version"],
     )
     if payload["signature_id"] != signature.signature_id:
         raise SignatureError("signature_id does not match signature document")
