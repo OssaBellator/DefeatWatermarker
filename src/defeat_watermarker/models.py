@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from .provenance import ProvenanceGraph
+
 
 class Modality(str, Enum):
     IMAGE = "image"
@@ -26,6 +28,15 @@ class MarkFamily(str, Enum):
     UNKNOWN = "unknown"
 
 
+class VerificationState(str, Enum):
+    NOT_EVALUATED = "not_evaluated"
+    WELL_FORMED = "well_formed"
+    VALID = "valid"
+    TRUSTED = "trusted"
+    INVALID = "invalid"
+    ERROR = "error"
+
+
 @dataclass(frozen=True, slots=True)
 class Artifact:
     data: bytes = field(repr=False)
@@ -45,6 +56,9 @@ class DetectionResult:
     provenance_identifier: str | None = None
     cryptographically_verified: bool = False
     registry_verified: bool = False
+    verification_state: VerificationState = VerificationState.NOT_EVALUATED
+    validation_codes: tuple[str, ...] = ()
+    provenance_graph: ProvenanceGraph | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
@@ -61,6 +75,11 @@ class DetectionResult:
             "provenance_identifier": self.provenance_identifier,
             "cryptographically_verified": self.cryptographically_verified,
             "registry_verified": self.registry_verified,
+            "verification_state": self.verification_state.value,
+            "validation_codes": list(self.validation_codes),
+            "provenance_graph": (
+                self.provenance_graph.to_dict() if self.provenance_graph is not None else None
+            ),
         }
 
 
