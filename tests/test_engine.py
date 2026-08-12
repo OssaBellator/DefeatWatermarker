@@ -1,3 +1,5 @@
+import pytest
+
 from defeat_watermarker.adapters.base import WatermarkAdapter
 from defeat_watermarker.engine import RobustnessEngine
 from defeat_watermarker.models import Artifact, DetectionResult, MarkFamily, Modality, MutationScenario
@@ -51,9 +53,20 @@ def test_unknown_mutation_is_rejected() -> None:
         transformation_family="unknown",
     )
 
-    try:
+    with pytest.raises(KeyError, match="unknown predefined mutation"):
         engine.evaluate(Artifact(data=b"fixture-mark"), [scenario])
-    except KeyError as exc:
-        assert "unknown predefined mutation" in str(exc)
-    else:
-        raise AssertionError("expected KeyError")
+
+
+def test_known_modality_mismatch_is_rejected_before_mutation() -> None:
+    engine = RobustnessEngine(AdapterRegistry([FixtureAdapter()]), [IdentityMutation()])
+    scenario = MutationScenario(
+        scenario_id="wrong-modality",
+        mutation_id="control.identity.v1",
+        modality=Modality.IMAGE,
+        transformation_family="control",
+    )
+    with pytest.raises(ValueError, match="expects image, artifact is audio"):
+        engine.evaluate(
+            Artifact(data=b"fixture-mark", modality=Modality.AUDIO),
+            [scenario],
+        )

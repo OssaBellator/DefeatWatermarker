@@ -5,12 +5,19 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .adapters.c2pa import C2paPythonBackend, C2paVerifierAdapter
 from .adapters.metadata import ContainerHintAdapter
 from .engine import RobustnessEngine
 from .evidence import build_evidence_bundle
 from .metrics import GatePolicy, apply_gate, summarize_report
 from .models import Artifact, Modality
-from .mutations.base import ByteCopyMutation, IdentityMutation
+from .mutations import (
+    ByteCopyMutation,
+    CenterCrop90Quality85,
+    IdentityMutation,
+    JpegReencodeQuality85,
+    Resize75Quality85,
+)
 from .registry import AdapterRegistry
 from .suites import SuiteError, load_suite
 
@@ -35,7 +42,21 @@ def _emit(payload: dict[str, Any], output: Path | None) -> None:
 
 
 def _registry() -> AdapterRegistry:
-    return AdapterRegistry([ContainerHintAdapter()])
+    adapters = [ContainerHintAdapter()]
+    if C2paPythonBackend.available():
+        adapters.append(C2paVerifierAdapter())
+    return AdapterRegistry(adapters)
+
+
+def _mutations():
+    # Image mutation classes import Pillow only when applied. This keeps the core dependency-free.
+    return [
+        IdentityMutation(),
+        ByteCopyMutation(),
+        JpegReencodeQuality85(),
+        Resize75Quality85(),
+        CenterCrop90Quality85(),
+    ]
 
 
 def _scan(path: Path, media_type: str, output: Path | None) -> int:
@@ -79,10 +100,7 @@ def _evaluate(
         name=path.name,
         modality=_infer_modality(media_type),
     )
-    engine = RobustnessEngine(
-        _registry(),
-        [IdentityMutation(), ByteCopyMutation()],
-    )
+    engine = RobustnessEngine(_registry(), _mutations())
     report = engine.evaluate(artifact, suite.scenarios)
     summary = summarize_report(report)
     evidence = build_evidence_bundle(artifact, suite, report, summary)

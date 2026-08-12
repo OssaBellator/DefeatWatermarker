@@ -7,6 +7,7 @@ from .models import (
     DetectionComparison,
     DetectionResult,
     EvaluationReport,
+    Modality,
     MutationScenario,
     ScenarioEvaluation,
 )
@@ -41,6 +42,18 @@ class RobustnessEngine:
             if adapter.supports(artifact)
         )
 
+    @staticmethod
+    def _validate_scenario_modality(artifact: Artifact, scenario: MutationScenario) -> None:
+        if (
+            artifact.modality is not Modality.UNKNOWN
+            and scenario.modality is not Modality.UNKNOWN
+            and artifact.modality is not scenario.modality
+        ):
+            raise ValueError(
+                f"scenario {scenario.scenario_id} expects {scenario.modality.value}, "
+                f"artifact is {artifact.modality.value}"
+            )
+
     def evaluate(
         self,
         artifact: Artifact,
@@ -56,6 +69,7 @@ class RobustnessEngine:
         evaluations: list[ScenarioEvaluation] = []
 
         for scenario in selected:
+            self._validate_scenario_modality(artifact, scenario)
             mutation = self._mutations.get(scenario.mutation_id)
             if mutation is None:
                 raise KeyError(f"unknown predefined mutation: {scenario.mutation_id}")

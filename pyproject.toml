@@ -14,7 +14,8 @@ dependencies = []
 
 [project.optional-dependencies]
 c2pa = ["c2pa-python>=0.33,<1"]
-dev = ["pytest>=8,<9"]
+image = ["Pillow>=12.3,<13"]
+dev = ["pytest>=8,<9", "Pillow>=12.3,<13"]
 
 [project.scripts]
 defeat-watermarker = "defeat_watermarker.cli:main"
