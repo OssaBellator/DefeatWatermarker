@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/benchmark-comparison-v0.1.schema.json",
+  "title": "DefeatWatermarker benchmark comparison v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparison_id",
+    "schema_version",
+    "status",
+    "baseline_id",
+    "report_id",
+    "changes",
+    "reason"
+  ],
+  "properties": {
+    "comparison_id": {"$ref": "#/$defs/sha256"},
+    "schema_version": {"const": "0.1"},
+    "status": {"enum": ["same_or_better", "regression", "indeterminate"]},
+    "baseline_id": {"$ref": "#/$defs/sha256"},
+    "report_id": {"$ref": "#/$defs/sha256"},
+    "changes": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {"type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^[^\\r\\n]+$"}
+    },
+    "reason": {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": "^[^\\r\\n]+$"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "same_or_better"}}},
+      "then": {"properties": {"changes": {"maxItems": 0}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "regression"}}},
+      "then": {"properties": {"changes": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "indeterminate"}}},
+      "then": {"properties": {"changes": {"maxItems": 0}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
