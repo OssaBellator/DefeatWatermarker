@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import copy
+import json
+import tempfile
+from pathlib import Path
 
 from defeat_watermarker.benchmark_baseline import (
     BenchmarkBaselineError,
@@ -15,6 +18,7 @@ from defeat_watermarker.benchmark_comparison import (
 )
 from defeat_watermarker.benchmark_evidence import verify_benchmark_document
 from defeat_watermarker.digests import content_digest
+from defeat_watermarker.report import render_report
 
 
 def bind(core):
@@ -160,6 +164,19 @@ def main():
     rebind(tampered_interop)
     assert not verify_benchmark_document(tampered_interop).valid
 
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        for payload, title in (
+            (reliability_payload, "reliability benchmark report"),
+            (interoperability_payload, "interoperability benchmark report"),
+        ):
+            path = root / f"{payload['report_id']}.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            rendered = render_report(path)
+            assert title in rendered
+            assert "<script" not in rendered
+            assert "http://" not in rendered and "https://" not in rendered
+
     baseline = create_benchmark_baseline(reliability_payload)
     comparison = compare_benchmark_to_baseline(reliability_payload, baseline)
     comparison_evidence = from_comparison(comparison)
@@ -182,7 +199,8 @@ def main():
         raise AssertionError("malformed rehashed baseline metrics accepted")
 
     print(
-        "OK: semantic benchmark verification and baseline/comparison regression smoke"
+        "OK: semantic benchmark verification, static reports, and "
+        "baseline/comparison regression smoke"
     )
 
 
