@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .batch_verify import BatchVerificationError, verify_batch_directory
+from .benchmark_evidence import verify_benchmark_document
 from .evidence import EvidenceError, load_evidence_document, verify_evidence_document
 from .scan_evidence import ScanEvidenceError, load_scan_document, verify_scan_document
 
@@ -165,6 +166,81 @@ def _evaluation_html(payload: dict[str, Any]) -> str:
     return _page("DefeatWatermarker attack report", verification.evidence_id, body)
 
 
+def _benchmark_html(payload: dict[str, Any]) -> str:
+    verification = verify_benchmark_document(payload)
+    if (
+        not verification.valid
+        or verification.report_id is None
+        or verification.benchmark_type is None
+    ):
+        raise ReportError("benchmark evidence failed integrity verification")
+
+    if verification.benchmark_type == "reliability":
+        summary = payload["summary"]
+        rows = []
+        for case in payload["cases"]:
+            rows.append(
+                "<tr>"
+                f"<td>{_escape(case.get('case_id'))}</td>"
+                f"<td>{_bool(case.get('expected_detected'))}</td>"
+                f"<td>{_bool(case.get('actual_detected'))}</td>"
+                f"<td>{_escape(case.get('confidence'))}</td>"
+                f"<td>{_escape(case.get('verification_state'))}</td>"
+                "</tr>"
+            )
+        body = f"""
+<h2>Benchmark</h2>
+<div class="meta">
+<div>Corpus</div><div>{_escape(payload.get('corpus_id'))} {_escape(payload.get('corpus_version'))}</div>
+<div>Adapter</div><div><code>{_escape(payload.get('adapter_id'))}</code></div>
+<div>Cases</div><div>{len(payload.get('cases', []))}</div>
+<div>Accuracy</div><div>{_percent(summary.get('accuracy'))}</div>
+<div>Precision</div><div>{_percent(summary.get('precision'))}</div>
+<div>Recall</div><div>{_percent(summary.get('recall'))}</div>
+<div>Specificity</div><div>{_percent(summary.get('specificity'))}</div>
+<div>False-positive rate</div><div>{_percent(summary.get('false_positive_rate'))}</div>
+<div>False-negative rate</div><div>{_percent(summary.get('false_negative_rate'))}</div>
+</div>
+<h2>Labelled cases</h2>
+<table><thead><tr><th>Case</th><th>Expected</th><th>Actual</th><th>Confidence</th><th>Verification</th></tr></thead>
+<tbody>{''.join(rows)}</tbody></table>
+"""
+        return _page(
+            "DefeatWatermarker reliability benchmark report",
+            verification.report_id,
+            body,
+        )
+
+    pair_rows = []
+    for pair in payload["pairs"]:
+        pair_rows.append(
+            "<tr>"
+            f"<td><code>{_escape(pair.get('left_adapter_id'))}</code></td>"
+            f"<td><code>{_escape(pair.get('right_adapter_id'))}</code></td>"
+            f"<td>{_escape(pair.get('comparable_cases'))}</td>"
+            f"<td>{_escape(pair.get('detection_agreements'))}</td>"
+            f"<td>{_escape(pair.get('detection_disagreements'))}</td>"
+            f"<td>{_percent(pair.get('agreement_rate'))}</td>"
+            "</tr>"
+        )
+    body = f"""
+<h2>Benchmark</h2>
+<div class="meta">
+<div>Matrix</div><div>{_escape(payload.get('matrix_id'))} {_escape(payload.get('matrix_version'))}</div>
+<div>Adapters</div><div>{len(payload.get('adapter_runtime', {}))}</div>
+<div>Cases</div><div>{len(payload.get('cases', []))}</div>
+</div>
+<h2>Pairwise agreement</h2>
+<table><thead><tr><th>Left adapter</th><th>Right adapter</th><th>Comparable</th><th>Agreements</th><th>Disagreements</th><th>Agreement rate</th></tr></thead>
+<tbody>{''.join(pair_rows)}</tbody></table>
+"""
+    return _page(
+        "DefeatWatermarker interoperability benchmark report",
+        verification.report_id,
+        body,
+    )
+
+
 def _batch_html(directory: Path) -> str:
     verification = verify_batch_directory(directory)
     if not verification.valid or verification.batch_id is None:
@@ -200,7 +276,12 @@ def render_report(input_path: Path) -> str:
     if input_path.is_dir():
         try:
             return _batch_html(input_path)
-        except (BatchVerificationError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+        except (
+            BatchVerificationError,
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+        ) as exc:
             raise ReportError(str(exc)) from exc
 
     try:
@@ -215,4 +296,8 @@ def render_report(input_path: Path) -> str:
         return _evaluation_html(payload)
     if "scan_id" in payload:
         return _scan_html(payload)
-    raise ReportError("input is not recognized scan or evaluation evidence")
+    if "report_id" in payload:
+        return _benchmark_html(payload)
+    raise ReportError(
+        "input is not recognized scan, evaluation, or benchmark evidence"
+    )
