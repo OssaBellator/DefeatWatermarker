@@ -13,6 +13,11 @@ from .regression import (
     create_regression_baseline,
     load_regression_baseline,
 )
+from .regression_verify import (
+    RegressionVerificationError,
+    load_regression_report,
+    verify_regression_report,
+)
 
 
 def _emit(payload: dict[str, object], output: Path | None) -> None:
@@ -48,7 +53,7 @@ def _reject_output_alias(output: Path | None, *inputs: Path) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-regression",
-        description="Create and compare content-addressed robustness regression baselines",
+        description="Create, compare and verify content-addressed robustness regression evidence",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -63,6 +68,15 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("baseline", type=Path)
     check.add_argument("evidence", type=Path)
     check.add_argument("--output", type=Path)
+
+    verify = subparsers.add_parser(
+        "verify",
+        help="recompute and verify a saved regression report against its baseline/evidence",
+    )
+    verify.add_argument("baseline", type=Path)
+    verify.add_argument("evidence", type=Path)
+    verify.add_argument("report", type=Path)
+    verify.add_argument("--output", type=Path)
     return parser
 
 
@@ -95,7 +109,27 @@ def main(argv: list[str] | None = None) -> int:
             if report.status is RegressionStatus.INDETERMINATE:
                 return 7
             return 0
-    except (OSError, UnicodeError, EvidenceError, RegressionError, ValueError) as exc:
+        if args.command == "verify":
+            _reject_output_alias(
+                args.output,
+                args.baseline,
+                args.evidence,
+                args.report,
+            )
+            baseline = load_regression_baseline(args.baseline)
+            evidence = load_evidence_document(args.evidence)
+            report = load_regression_report(args.report)
+            verification = verify_regression_report(report, baseline, evidence)
+            _emit(verification.to_dict(), args.output)
+            return 0 if verification.valid else 8
+    except (
+        OSError,
+        UnicodeError,
+        EvidenceError,
+        RegressionError,
+        RegressionVerificationError,
+        ValueError,
+    ) as exc:
         parser.error(str(exc))
     raise AssertionError("unreachable")
 
