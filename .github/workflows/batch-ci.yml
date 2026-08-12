@@ -45,14 +45,15 @@ jobs:
           attack = json.loads(
               Path('/tmp/defeat-watermarker-attack-batch/batch.json').read_text(encoding='utf-8')
           )
-          assert len(scan['records']) == 3  # README + text + image fixture
+          assert len(scan['records']) == 4  # README + text + image + unknown fixture
           assert all(item['mode'] == 'scan' for item in scan['records'])
           assert all(item['record_id'] for item in scan['records'])
 
           modes = {item['relative_path']: item['mode'] for item in attack['records']}
-          assert modes['README.md'] == 'scan'
+          assert modes['README.md'] == 'attack'
           assert modes['example_image.ppm'] == 'attack'
           assert modes['example_text.txt'] == 'attack'
+          assert modes['example_unknown.bin'] == 'scan'
           assert all(item['record_id'] for item in attack['records'])
           PY
       - uses: actions/upload-artifact@v4
