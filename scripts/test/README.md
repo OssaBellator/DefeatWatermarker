@@ -60,6 +60,7 @@ Generated caches, virtual environments, build/dist output, `.defeat-watermarker/
 ```bash
 bash scripts/test/preflight.sh
 bash scripts/test/core.sh
+bash scripts/test/schemas.sh
 bash scripts/test/cli_smoke.sh
 bash scripts/test/package.sh
 bash scripts/test/conformance.sh
@@ -68,11 +69,13 @@ bash scripts/test/batch.sh
 bash scripts/test/fixtures.sh
 ```
 
-`preflight.sh` rejects reintroduced Actions workflow files, verifies Python/package metadata and public CLI declarations, then byte-compiles the source tree.
+`preflight.sh` rejects reintroduced Actions workflow files, verifies Python/package metadata and all 12 public CLI declarations, then byte-compiles the source tree.
 
 `core.sh` runs preflight, pytest and the standalone semantic benchmark regression smoke test.
 
-`package.sh` builds the wheel entirely offline, inspects wheel contents for repository-only paths/private-key markers, installs it into a fresh temporary virtual environment, runs `pip check`, and smoke-tests every public console command.
+`schemas.sh` runs a dependency-free audit over every published schema: Draft 2020-12, strict root objects, unique IDs and an exact repository URL `$id` derived from each schema filename.
+
+`package.sh` builds the wheel entirely offline, inspects wheel contents for repository-only paths/private-key markers, installs it into a fresh temporary virtual environment, runs `pip check`, and smoke-tests every public console command including regression, detached signatures and detector conformance.
 
 `conformance.sh` explicitly loads the fixture detector entry point, verifies the read-only/deterministic plugin contract, verifies the content-addressed conformance JSON and renders a static local HTML report.
 
@@ -97,7 +100,7 @@ Optional tests require `cryptography`, `c2pa-python`, Pillow, OpenSSL and FFmpeg
 ## Recorded suite names
 
 - `core`: preflight + pytest + semantic benchmark smoke;
-- `standard`: core plus CLI smoke, offline wheel packaging, detector conformance, provider benchmarks, batch and permanent fixtures;
+- `standard`: core plus schema audit, CLI smoke, offline wheel packaging, detector conformance, provider benchmarks, batch and permanent fixtures;
 - `optional`: standard plus signing, video and real signed/tampered C2PA tests.
 
 The scripts use temporary directories, do not export transformed media chosen for failed attribution, and retain the project's detector-blind fixed-suite boundary.
