@@ -6,6 +6,7 @@ from typing import Any
 from .adapters.c2pa import C2paPythonBackend
 from .models import MarkFamily, Modality
 from .mutations.image import pillow_available
+from .mutations.video import ffmpeg_available
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +34,7 @@ class ComponentCapability:
 def builtin_capabilities() -> tuple[ComponentCapability, ...]:
     image_available = pillow_available()
     c2pa_available = C2paPythonBackend.available()
+    video_available = ffmpeg_available()
     return (
         ComponentCapability(
             component_id="evidence.content-addressed.v2",
@@ -179,6 +181,20 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             component_type="mutation",
             available=True,
             modalities=(Modality.TEXT,),
+        ),
+        ComponentCapability(
+            component_id="video.ffmpeg-h264-crf23-aac128.v1",
+            component_type="mutation",
+            available=video_available,
+            modalities=(Modality.VIDEO,),
+            notes="Requires ffmpeg on PATH; command is fixed and invoked without a shell.",
+        ),
+        ComponentCapability(
+            component_id="video.ffmpeg-scale75-h264-crf23-aac128.v1",
+            component_type="mutation",
+            available=video_available,
+            modalities=(Modality.VIDEO,),
+            notes="Requires ffmpeg on PATH; fixed 75% rendition plus H.264/AAC transcode.",
         ),
     )
 

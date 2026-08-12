@@ -146,6 +146,10 @@ class DetectionComparison:
 class ScenarioEvaluation:
     scenario: MutationScenario
     comparisons: tuple[DetectionComparison, ...]
+    derivative_sha256: str
+    derivative_byte_length: int
+    derivative_media_type: str
+    mutation_runtime: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -157,6 +161,12 @@ class ScenarioEvaluation:
                 "severity": self.scenario.severity,
                 "generation_count": self.scenario.generation_count,
             },
+            "derivative": {
+                "sha256": self.derivative_sha256,
+                "byte_length": self.derivative_byte_length,
+                "media_type": self.derivative_media_type,
+            },
+            "mutation_runtime": list(self.mutation_runtime),
             "comparisons": [item.to_dict() for item in self.comparisons],
         }
 
@@ -169,7 +179,6 @@ class EvaluationReport:
     scenarios: tuple[ScenarioEvaluation, ...]
 
     def to_dict(self) -> dict[str, Any]:
-        # Deliberately excludes Artifact.data and all transformed derivatives.
         return {
             "artifact_name": self.artifact_name,
             "media_type": self.media_type,

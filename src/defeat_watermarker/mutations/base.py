@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import platform
 from abc import ABC, abstractmethod
 
 from ..models import Artifact, MutationScenario
@@ -18,6 +19,10 @@ class ArtifactMutation(ABC):
     def apply(self, artifact: Artifact, scenario: MutationScenario) -> Artifact:
         raise NotImplementedError
 
+    def runtime_identity(self) -> tuple[str, ...]:
+        """Bounded implementation identity recorded with derivative evidence."""
+        return (f"python={platform.python_version()}",)
+
 
 class IdentityMutation(ArtifactMutation):
     mutation_id = "control.identity.v1"
@@ -35,7 +40,6 @@ class ByteCopyMutation(ArtifactMutation):
     mutation_id = "control.byte-copy.v1"
 
     def apply(self, artifact: Artifact, scenario: MutationScenario) -> Artifact:
-        # Produces a distinct bytes object where possible while preserving content.
         copied = bytes(bytearray(artifact.data))
         return Artifact(
             data=copied,

@@ -21,6 +21,8 @@ from .models import Artifact, Modality
 from .mutations import (
     ByteCopyMutation,
     CenterCrop90Quality85,
+    FfmpegH264Crf23,
+    FfmpegScale75H264Crf23,
     IdentityMutation,
     JpegReencodeQuality85,
     NormalizeLineEndingsLf,
@@ -104,6 +106,8 @@ def _mutations():
         NormalizeUnicodeNfc(),
         NormalizeLineEndingsLf(),
         StripTrailingHorizontalWhitespace(),
+        FfmpegH264Crf23(),
+        FfmpegScale75H264Crf23(),
     ]
 
 

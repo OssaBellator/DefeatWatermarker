@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "suite_id": "video-platform-rendition",
+  "version": "0.1",
+  "description": "Fixed detector-blind FFmpeg renditions representing ordinary H.264/AAC platform transcoding and resolution reduction. FFmpeg is invoked without a shell and derivatives remain private temporary/in-memory data.",
+  "scenarios": [
+    {
+      "scenario_id": "h264-crf23-aac128",
+      "mutation_id": "video.ffmpeg-h264-crf23-aac128.v1",
+      "modality": "video",
+      "transformation_family": "transcode",
+      "severity": "medium",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "scale75-h264-crf23-aac128",
+      "mutation_id": "video.ffmpeg-scale75-h264-crf23-aac128.v1",
+      "modality": "video",
+      "transformation_family": "scale-and-transcode",
+      "severity": "high",
+      "generation_count": 1
+    }
+  ]
+}

@@ -65,6 +65,7 @@ def test_profile_can_be_engineering_ready_when_all_declared_requirements_exist()
     assert assessment.status is ReadinessStatus.READY
     assert not assessment.capability_gaps
     assert not assessment.modality_gaps
+    assert not assessment.unavailable_suite_mutations
 
 
 def test_profile_rejects_unknown_fields() -> None:

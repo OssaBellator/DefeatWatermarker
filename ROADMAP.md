@@ -16,6 +16,7 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] Strict, versioned robustness-suite documents
 - [x] Canonical suite digests
 - [x] Artifact/report/suite content-addressed evidence bundles
+- [x] Derivative hashes/lengths and mutation runtime identities without derivative export
 - [x] Gate policy/results bound into evidence IDs
 - [x] Offline evidence self-consistency verification
 - [x] Detection and provenance-assurance survival summaries
@@ -39,7 +40,7 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 - [x] Image suite descriptors and deterministic in-memory transformations
 - [x] Audio PCM-WAV suite with level/downmix/resample workflows
 - [x] Text suite limited to non-semantic editorial normalization
-- [ ] Video suite descriptors and reproducible fixtures
+- [x] Optional bounded FFmpeg video rendition suite
 - [x] Transformation implementations remain predefined and detector-blind
 - [x] No derivative chosen through detector-score optimization is exportable
 
@@ -47,7 +48,7 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 
 - [x] Machine-readable built-in capability registry
 - [x] Versioned EU Article 50(2) provider-marking engineering profile
-- [x] Capability/modality gap assessment with non-certification disclaimer
+- [x] Capability/runnable-modality gap assessment with non-certification disclaimer
 - [x] Fixed labelled-corpus false-positive/false-negative benchmark runner
 - [ ] Representative reviewed reliability corpora for supported detector families
 - [ ] Multi-provider detector adapters behind optional dependencies

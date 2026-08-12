@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from .digests import sha256_bytes
 from .io_utils import DEFAULT_MAX_ARTIFACT_BYTES
 from .models import (
     Artifact,
@@ -73,7 +74,6 @@ class RobustnessEngine:
         if len(selected) > self.max_scenarios:
             raise ValueError(f"scenario count exceeds max_scenarios={self.max_scenarios}")
 
-        # Baseline is computed independently. Results are never passed to mutations.
         baseline = self._detect(artifact)
         baseline_by_adapter = {item.adapter_id: item for item in baseline}
         evaluations: list[ScenarioEvaluation] = []
@@ -83,6 +83,9 @@ class RobustnessEngine:
             mutation = self._mutations.get(scenario.mutation_id)
             if mutation is None:
                 raise KeyError(f"unknown predefined mutation: {scenario.mutation_id}")
+            runtime = tuple(mutation.runtime_identity())
+            if len(runtime) > 16 or any(len(item) > 512 for item in runtime):
+                raise ValueError(f"mutation {mutation.mutation_id} returned unbounded runtime identity")
 
             derivative = artifact
             for generation in range(scenario.generation_count):
@@ -102,7 +105,16 @@ class RobustnessEngine:
                 for result in after
                 if result.adapter_id in baseline_by_adapter
             )
-            evaluations.append(ScenarioEvaluation(scenario=scenario, comparisons=comparisons))
+            evaluations.append(
+                ScenarioEvaluation(
+                    scenario=scenario,
+                    comparisons=comparisons,
+                    derivative_sha256=sha256_bytes(derivative.data),
+                    derivative_byte_length=len(derivative.data),
+                    derivative_media_type=derivative.media_type,
+                    mutation_runtime=runtime,
+                )
+            )
 
         return EvaluationReport(
             artifact_name=artifact.name,

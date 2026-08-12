@@ -103,6 +103,7 @@ class ProfileAssessment:
     capability_gaps: tuple[str, ...]
     modality_scenario_counts: tuple[tuple[Modality, int], ...]
     modality_gaps: tuple[str, ...]
+    unavailable_suite_mutations: tuple[str, ...]
     suite_digests: tuple[str, ...]
     disclaimer: str = (
         "Engineering-readiness assessment only. This output is not a legal compliance "
@@ -121,6 +122,7 @@ class ProfileAssessment:
                 modality.value: count for modality, count in self.modality_scenario_counts
             },
             "modality_gaps": list(self.modality_gaps),
+            "unavailable_suite_mutations": list(self.unavailable_suite_mutations),
             "suite_digests": list(self.suite_digests),
             "disclaimer": self.disclaimer,
         }
@@ -204,11 +206,9 @@ def assess_profile(
     profile: EngineeringProfile,
     suites: tuple[RobustnessSuite, ...],
 ) -> ProfileAssessment:
-    available = {
-        item["component_id"]
-        for item in capability_document()["components"]
-        if item["available"]
-    }
+    components = capability_document()["components"]
+    known = {item["component_id"]: item for item in components}
+    available = {component_id for component_id, item in known.items() if item["available"]}
     capability_gaps = tuple(
         capability
         for capability in profile.required_capabilities
@@ -216,19 +216,23 @@ def assess_profile(
     )
 
     counts: dict[Modality, int] = {modality: 0 for modality in profile.required_modalities}
+    unavailable_mutations: set[str] = set()
     for suite in suites:
         for scenario in suite.scenarios:
+            if scenario.mutation_id not in available:
+                unavailable_mutations.add(scenario.mutation_id)
+                continue
             if scenario.modality in counts:
                 counts[scenario.modality] += 1
 
     modality_gaps = tuple(
-        f"{modality.value}: {counts[modality]}/{profile.minimum_scenarios_per_modality} scenarios"
+        f"{modality.value}: {counts[modality]}/{profile.minimum_scenarios_per_modality} runnable scenarios"
         for modality in profile.required_modalities
         if counts[modality] < profile.minimum_scenarios_per_modality
     )
     status = (
         ReadinessStatus.READY
-        if not capability_gaps and not modality_gaps
+        if not capability_gaps and not modality_gaps and not unavailable_mutations
         else ReadinessStatus.GAP
     )
     return ProfileAssessment(
@@ -241,5 +245,6 @@ def assess_profile(
             (modality, counts[modality]) for modality in profile.required_modalities
         ),
         modality_gaps=modality_gaps,
+        unavailable_suite_mutations=tuple(sorted(unavailable_mutations)),
         suite_digests=tuple(suite.digest for suite in suites),
     )
