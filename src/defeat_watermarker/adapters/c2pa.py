@@ -27,16 +27,13 @@ class C2paManifestNotFound(C2paBackendError):
 
 @dataclass(frozen=True, slots=True)
 class C2paTrustPolicy:
-    """Local-first verification configuration for the C2PA SDK."""
+    """Local-first verification configuration for the current C2PA SDK trust model."""
 
     trust_anchors_pem: str | None = None
-    verify_cert_anchors: bool = False
     remote_manifest_fetch: bool = False
     trust_config: str | None = None
 
     def __post_init__(self) -> None:
-        if self.verify_cert_anchors and not self.trust_anchors_pem:
-            raise ValueError("verify_cert_anchors requires trust_anchors_pem")
         if self.trust_config is not None and not self.trust_config.strip():
             raise ValueError("trust_config must be non-empty when supplied")
 
