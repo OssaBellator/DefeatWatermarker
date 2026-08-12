@@ -87,6 +87,30 @@ def test_batch_rejects_symlink_input_root(tmp_path: Path) -> None:
         run_batch(link)
 
 
+def test_batch_cli_rejects_output_inside_input_tree(tmp_path: Path) -> None:
+    root = _fixture_dir(tmp_path)
+    output = root / "generated-output"
+
+    with pytest.raises(SystemExit) as exc:
+        batch_main([str(root), "--scan-only", "--output-dir", str(output)])
+
+    assert exc.value.code == 2
+    assert not output.exists()
+
+
+def test_batch_cli_rejects_nonempty_output_directory(tmp_path: Path) -> None:
+    root = _fixture_dir(tmp_path)
+    output = tmp_path / "output"
+    output.mkdir()
+    (output / "stale.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc:
+        batch_main([str(root), "--scan-only", "--output-dir", str(output)])
+
+    assert exc.value.code == 2
+    assert (output / "stale.json").is_file()
+
+
 def test_nonrecursive_batch_ignores_nested_files(tmp_path: Path) -> None:
     root = _fixture_dir(tmp_path)
     nested = root / "nested"
