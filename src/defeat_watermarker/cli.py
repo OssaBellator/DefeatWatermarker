@@ -85,7 +85,6 @@ def _registry(
             C2paVerifierAdapter(
                 policy=C2paTrustPolicy(
                     trust_anchors_pem=anchors,
-                    verify_cert_anchors=anchors is not None,
                     remote_manifest_fetch=False,
                 )
             )
