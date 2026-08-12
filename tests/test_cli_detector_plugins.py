@@ -53,6 +53,36 @@ def test_evaluate_parser_accepts_detector_plugin() -> None:
     assert args.detector_plugin == ["provider-text"]
 
 
+def test_reliability_parser_accepts_detector_plugin() -> None:
+    args = build_parser().parse_args(
+        [
+            "benchmark",
+            "reliability",
+            "corpus.json",
+            "--detector-plugin",
+            "provider-text",
+        ]
+    )
+
+    assert args.detector_plugin == ["provider-text"]
+
+
+def test_interoperability_parser_accepts_repeatable_detector_plugins() -> None:
+    args = build_parser().parse_args(
+        [
+            "benchmark",
+            "interoperability",
+            "matrix.json",
+            "--detector-plugin",
+            "provider-one",
+            "--detector-plugin",
+            "provider-two",
+        ]
+    )
+
+    assert args.detector_plugin == ["provider-one", "provider-two"]
+
+
 def test_scan_uses_explicit_detector_plugin(monkeypatch, tmp_path: Path) -> None:
     artifact_path = tmp_path / "fixture.txt"
     artifact_path.write_text("fixture text", encoding="utf-8")
