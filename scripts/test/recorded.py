@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -11,8 +12,21 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_VERSION = "0.2"
+SCHEMA_VERSION = "0.3"
 _PYTHON = "{python}"
+_MAX_SOURCE_FILES = 8192
+_MAX_SOURCE_BYTES = 512 * 1024 * 1024
+_IGNORED_DIRS = {
+    ".git",
+    ".venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".defeat-watermarker",
+    "__pycache__",
+    "build",
+    "dist",
+}
 SUITES = {
     "core": (
         ("preflight", ("bash", "scripts/test/preflight.sh")),
@@ -51,6 +65,58 @@ def _resolve_command(command: tuple[str, ...]) -> tuple[str, ...]:
     return command
 
 
+def _ignore_directory(name: str) -> bool:
+    return name in _IGNORED_DIRS or name.endswith(".egg-info")
+
+
+def source_tree_state() -> tuple[str, int]:
+    entries: list[dict[str, Any]] = []
+    total_bytes = 0
+    for dirpath, dirnames, filenames in os.walk(ROOT, topdown=True, followlinks=False):
+        directory = Path(dirpath)
+        kept_dirs: list[str] = []
+        for name in sorted(dirnames):
+            if _ignore_directory(name):
+                continue
+            candidate = directory / name
+            if candidate.is_symlink():
+                raise ValueError(
+                    f"source tree contains symlinked directory: {candidate.relative_to(ROOT)}"
+                )
+            kept_dirs.append(name)
+        dirnames[:] = kept_dirs
+
+        for name in sorted(filenames):
+            if name.endswith((".pyc", ".pyo")):
+                continue
+            path = directory / name
+            relative = path.relative_to(ROOT).as_posix()
+            if path.is_symlink():
+                raise ValueError(f"source tree contains symlinked file: {relative}")
+            if not path.is_file():
+                continue
+            data = path.read_bytes()
+            total_bytes += len(data)
+            if total_bytes > _MAX_SOURCE_BYTES:
+                raise ValueError(
+                    f"source tree exceeds {_MAX_SOURCE_BYTES} bytes for local-test fingerprinting"
+                )
+            entries.append(
+                {
+                    "path": relative,
+                    "byte_length": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                }
+            )
+            if len(entries) > _MAX_SOURCE_FILES:
+                raise ValueError(
+                    f"source tree exceeds {_MAX_SOURCE_FILES} files for local-test fingerprinting"
+                )
+    if not entries:
+        raise ValueError("source tree contains no fingerprintable files")
+    return content_digest(entries), len(entries)
+
+
 def git_state() -> tuple[str | None, bool | None]:
     try:
         commit_result = subprocess.run(
@@ -82,6 +148,7 @@ def git_state() -> tuple[str | None, bool | None]:
 
 
 def run_suite(suite: str) -> dict[str, Any]:
+    source_before, source_file_count = source_tree_state()
     steps: list[dict[str, Any]] = []
     for name, logical_command in SUITES[suite]:
         command = _resolve_command(logical_command)
@@ -102,6 +169,10 @@ def run_suite(suite: str) -> dict[str, Any]:
         if return_code != 0:
             break
 
+    source_after, source_file_count_after = source_tree_state()
+    source_changed = (
+        source_before != source_after or source_file_count != source_file_count_after
+    )
     commit, dirty = git_state()
     all_expected_steps_ran = len(steps) == len(SUITES[suite])
     core = {
@@ -109,6 +180,9 @@ def run_suite(suite: str) -> dict[str, Any]:
         "suite": suite,
         "git_commit": commit,
         "git_dirty": dirty,
+        "source_tree_digest": source_before,
+        "source_tree_file_count": source_file_count,
+        "source_tree_changed": source_changed,
         "python_version": platform.python_version(),
         "python_implementation": platform.python_implementation(),
         "steps": steps,
@@ -116,12 +190,17 @@ def run_suite(suite: str) -> dict[str, Any]:
             bool(steps)
             and all(step["return_code"] == 0 for step in steps)
             and all_expected_steps_ran
+            and not source_changed
         ),
     }
     return {"report_id": content_digest(core), **core}
 
 
-def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
+def verify_report(
+    payload: dict[str, Any],
+    *,
+    check_current_tree: bool = False,
+) -> tuple[bool, list[str]]:
     errors: list[str] = []
     required = {
         "report_id",
@@ -129,6 +208,9 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
         "suite",
         "git_commit",
         "git_dirty",
+        "source_tree_digest",
+        "source_tree_file_count",
+        "source_tree_changed",
         "python_version",
         "python_implementation",
         "steps",
@@ -167,6 +249,25 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
         errors.append("git_dirty must be boolean or null")
     if commit is None and dirty is not None:
         errors.append("git_dirty must be null when git_commit is unavailable")
+
+    source_digest = payload.get("source_tree_digest")
+    if (
+        not isinstance(source_digest, str)
+        or len(source_digest) != 64
+        or any(character not in "0123456789abcdef" for character in source_digest)
+    ):
+        errors.append("source_tree_digest is invalid")
+    source_count = payload.get("source_tree_file_count")
+    if type(source_count) is not int or source_count < 1 or source_count > _MAX_SOURCE_FILES:
+        errors.append("source_tree_file_count is invalid")
+    source_changed = payload.get("source_tree_changed")
+    if type(source_changed) is not bool:
+        errors.append("source_tree_changed must be boolean")
+
+    if check_current_tree and not errors:
+        current_digest, current_count = source_tree_state()
+        if current_digest != source_digest or current_count != source_count:
+            errors.append("current source tree does not match recorded source tree")
 
     for field in ("python_version", "python_implementation"):
         if not isinstance(payload.get(field), str) or not payload[field]:
@@ -216,12 +317,14 @@ def verify_report(payload: dict[str, Any]) -> tuple[bool, list[str]]:
     passed = payload.get("passed")
     if type(passed) is not bool:
         errors.append("passed must be boolean")
-    elif steps and suite in SUITES:
-        expected_pass = all(step.get("return_code") == 0 for step in steps) and len(
-            steps
-        ) == len(SUITES[suite])
+    elif steps and suite in SUITES and type(source_changed) is bool:
+        expected_pass = (
+            all(step.get("return_code") == 0 for step in steps)
+            and len(steps) == len(SUITES[suite])
+            and not source_changed
+        )
         if passed != expected_pass:
-            errors.append("passed does not match recorded step outcomes")
+            errors.append("passed does not match recorded step/source outcomes")
 
     return not errors, errors
 
@@ -242,6 +345,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify = sub.add_parser("verify", help="verify a local test result record")
     verify.add_argument("report", type=Path)
+    verify.add_argument(
+        "--check-current-tree",
+        action="store_true",
+        help="also require the current checkout source fingerprint to match the report",
+    )
     return parser
 
 
@@ -249,7 +357,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "verify":
         payload = json.loads(args.report.read_text(encoding="utf-8"))
-        valid, errors = verify_report(payload)
+        valid, errors = verify_report(
+            payload,
+            check_current_tree=args.check_current_tree,
+        )
         print(
             json.dumps(
                 {
