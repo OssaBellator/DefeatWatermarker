@@ -33,11 +33,13 @@ python -m defeat_watermarker scan asset.jpg \
   --c2pa-trust-anchors ./trust-anchors.pem
 ```
 
-Supplying trust anchors enables certificate-anchor verification for that run. If the C2PA SDK is not installed, providing trust anchors fails closed rather than silently ignoring them.
+The adapter maps these certificates to the SDK's `trust.user_anchors` setting, keeping the built-in trust store available while adding the caller's roots. The default local trust configuration accepts the document-signing and C2PA claim-signing EKUs. If the C2PA SDK is not installed, providing trust anchors fails closed rather than silently ignoring them.
+
+The CLI does not accept arbitrary trust-settings JSON. More specialized trust policy can be supplied programmatically through `C2paTrustPolicy`, where a caller may provide an explicit EKU `trust_config`.
 
 ## Network boundary
 
-Remote-manifest fetching is disabled by default and is not exposed as a CLI switch in the current release. This keeps ordinary robustness tests local and deterministic. A future resolver subsystem should have a separate bounded network policy, explicit endpoint allowlists, response-size limits, timeouts, and evidence for every external lookup.
+Remote-manifest fetching is disabled by default and is not exposed as a CLI switch in the normal verifier. This keeps ordinary robustness tests local and deterministic. The separate recovery/resolver subsystem owns bounded network policy, endpoint allowlists, response-size limits, timeouts, and evidence for external lookups.
 
 ## Provenance graph
 
@@ -60,3 +62,28 @@ C2PA evaluations track four independent continuity dimensions:
 4. provenance-identifier preservation.
 
 A result can therefore remain detectable while failing a stronger assurance gate. That distinction is intentional.
+
+## Real signed regression path
+
+The C2PA CI job creates an end-to-end cryptographic regression asset on every pull request. No signing private key is stored in the repository.
+
+The job:
+
+1. creates an ephemeral P-256 root and signing certificate;
+2. emits the leaf private key as PKCS#8 for the official SDK signer;
+3. signs a deterministic JPEG with a V2 `c2pa.created` action and explicit IPTC `digitalSourceType`;
+4. verifies the signed asset through `defeat-watermarker-ui` using the ephemeral root as an additional trust anchor;
+5. flips one byte in the JPEG entropy-coded payload while preserving the embedded manifest container;
+6. verifies that the tampered asset is still discoverable as C2PA but fails cryptographic validation;
+7. stores only the public certificates, JSON evidence, and fixture-generation metadata as CI artifacts.
+
+The regression is intentionally stronger than the synthetic `C2PA` marker in `fixtures/retests/example_image.ppm`: the synthetic fixture tests metadata-hint survival, while this CI-generated fixture tests actual signature/trust/hard-binding behavior through the official SDK.
+
+The expected validation distinction is:
+
+```text
+signed original: signing credential trusted + claim signature validated + data hash matched
+tampered copy:   manifest still discoverable, but a hard-binding/hash mismatch makes it invalid
+```
+
+This gives the anti-watermark harness a stable cryptographic baseline before applying its fixed image rendition attacks.
