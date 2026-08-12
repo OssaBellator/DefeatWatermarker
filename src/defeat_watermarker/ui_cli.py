@@ -5,10 +5,12 @@ import json
 import mimetypes
 import sys
 from pathlib import Path
+from typing import Any
 
 from .builtin_suites import builtin_suite_catalog, builtin_suite_for
 from .cli import _infer_modality, _mutations, _registry
 from .detector_plugins import discover_detector_plugins, load_detector_plugins
+from .digests import content_digest, sha256_bytes
 from .engine import RobustnessEngine
 from .evidence import build_evidence_bundle
 from .io_utils import atomic_write_text, read_bounded_bytes
@@ -143,8 +145,8 @@ def _print_header(artifact: Artifact, suite: RobustnessSuite | None) -> None:
         print(f"Suite hash: {suite.digest}")
 
 
-def _write_evidence(path: Path, evidence: dict[str, object]) -> None:
-    atomic_write_text(path, json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def _detect_baseline(artifact: Artifact, registry) -> tuple[DetectionResult, ...]:
@@ -153,6 +155,24 @@ def _detect_baseline(artifact: Artifact, registry) -> tuple[DetectionResult, ...
         for adapter in registry
         if adapter.supports(artifact)
     )
+
+
+def _scan_document(
+    artifact: Artifact,
+    results: tuple[DetectionResult, ...],
+) -> dict[str, Any]:
+    core = {
+        "schema_version": "0.1",
+        "artifact": {
+            "name": artifact.name,
+            "sha256": sha256_bytes(artifact.data),
+            "byte_length": len(artifact.data),
+            "media_type": artifact.media_type,
+            "modality": artifact.modality.value,
+        },
+        "results": [item.to_dict() for item in results],
+    }
+    return {"scan_id": content_digest(core), **core}
 
 
 def _run(
@@ -191,6 +211,11 @@ def _run(
                 "\nNo built-in attack suite exists for this modality; showing detector output only. "
                 "Pass --suite PATH to run a custom fixed suite."
             )
+        if json_output is not None:
+            scan_document = _scan_document(artifact, baseline)
+            _write_json(json_output, scan_document)
+            print(f"Full JSON scan result: {json_output}")
+            print(f"Scan ID: {scan_document['scan_id']}")
         return 0
 
     engine = RobustnessEngine(registry, _mutations())
@@ -211,7 +236,7 @@ def _run(
     print(f"Evidence ID: {evidence['evidence_id']}")
 
     if json_output is not None:
-        _write_evidence(json_output, evidence)
+        _write_json(json_output, evidence)
         print(f"Full JSON evidence: {json_output}")
     return 0
 
@@ -228,7 +253,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--media-type", help="MIME type; inferred from filename when omitted")
     parser.add_argument("--suite", type=Path, help="custom immutable attack-suite JSON")
     parser.add_argument("--scan-only", action="store_true", help="show detector output without attacks")
-    parser.add_argument("--json-output", type=Path, help="write the full evidence bundle as JSON")
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        help="write attack evidence, or the detector scan record with --scan-only",
+    )
     parser.add_argument("--c2pa-trust-anchors", type=Path)
     parser.add_argument(
         "--detector-plugin",
