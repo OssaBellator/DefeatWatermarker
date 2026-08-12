@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://defeat-watermarker.local/schemas/detector-conformance-v0.1.schema.json",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/detector-conformance-v0.1.schema.json",
   "title": "DefeatWatermarker detector conformance report v0.1",
   "type": "object",
   "additionalProperties": false,
