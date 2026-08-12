@@ -16,8 +16,43 @@ if [[ -z "$wheel" ]]; then
   exit 1
 fi
 
+python - "$wheel" <<'PY'
+from pathlib import Path
+import sys
+from zipfile import ZipFile
+
+wheel = Path(sys.argv[1])
+forbidden_prefixes = ('tests/', 'fixtures/', 'scripts/', '.github/')
+private_markers = (
+    b'-----BEGIN PRIVATE KEY-----',
+    b'-----BEGIN EC PRIVATE KEY-----',
+    b'-----BEGIN RSA PRIVATE KEY-----',
+    b'-----BEGIN OPENSSH PRIVATE KEY-----',
+)
+with ZipFile(wheel) as archive:
+    names = archive.namelist()
+    assert names, 'wheel is empty'
+    assert any(name.startswith('defeat_watermarker/') for name in names)
+    leaked = [
+        name
+        for name in names
+        if name.startswith(forbidden_prefixes)
+        or '/tests/' in name
+        or '/fixtures/' in name
+        or '/scripts/' in name
+    ]
+    assert not leaked, f'non-runtime repository content leaked into wheel: {leaked[:10]}'
+    for info in archive.infolist():
+        if info.is_dir() or info.file_size > 4 * 1024 * 1024:
+            continue
+        data = archive.read(info)
+        for marker in private_markers:
+            assert marker not in data, f'private-key marker found in wheel member: {info.filename}'
+PY
+
 python -m venv "$out/venv"
 "$out/venv/bin/python" -m pip install --no-deps "$wheel"
+"$out/venv/bin/python" -m pip check
 
 commands=(
   defeat-watermarker
@@ -60,4 +95,4 @@ installed = {
 assert installed == expected, (installed, expected)
 PY
 
-printf 'OK: offline wheel builds, installs cleanly and exposes all public CLIs\n'
+printf 'OK: offline wheel builds, passes pip check, contains runtime-only content and exposes all public CLIs\n'
