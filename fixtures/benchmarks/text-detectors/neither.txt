@@ -1,0 +1,2 @@
+Synthetic interoperability negative case.
+Neither fixture detector marker is present here.
