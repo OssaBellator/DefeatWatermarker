@@ -26,12 +26,12 @@ def _report() -> dict[str, object]:
             },
             {
                 "name": "pytest",
-                "command": ["python", "-m", "pytest", "-q"],
+                "command": ["{python}", "-m", "pytest", "-q"],
                 "return_code": 0,
             },
             {
                 "name": "benchmark-regression",
-                "command": ["python", "scripts/test/benchmark_regression.py"],
+                "command": ["{python}", "scripts/test/benchmark_regression.py"],
                 "return_code": 0,
             },
         ],
@@ -73,3 +73,25 @@ def test_truncated_successful_suite_is_rejected() -> None:
 
     assert valid is False
     assert "passed does not match recorded step outcomes" in errors
+
+
+def test_rehashed_substituted_successful_command_is_rejected() -> None:
+    payload = _report()
+    payload["steps"][1]["command"] = ["{python}", "-c", "pass"]
+    _rebind(payload)
+
+    valid, errors = RECORDED.verify_report(payload)
+
+    assert valid is False
+    assert "step 1 command does not match selected suite" in errors
+
+
+def test_rehashed_renamed_step_is_rejected() -> None:
+    payload = _report()
+    payload["steps"][0]["name"] = "fake-preflight"
+    _rebind(payload)
+
+    valid, errors = RECORDED.verify_report(payload)
+
+    assert valid is False
+    assert "step 0 name does not match selected suite" in errors
