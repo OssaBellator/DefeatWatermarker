@@ -32,12 +32,15 @@ jobs:
           --detector-plugin fixture-text
           --detector-plugin fixture-text-secondary
           --output /tmp/interoperability.json
+      - name: Verify benchmark evidence offline
+        run: |
+          defeat-watermarker-benchmark-verify /tmp/reliability.json
+          defeat-watermarker-benchmark-verify /tmp/interoperability.json
       - name: Assert labelled metrics and runtime bindings
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          from defeat_watermarker.digests import content_digest
 
           reliability = json.loads(Path('/tmp/reliability.json').read_text(encoding='utf-8'))
           interoperability = json.loads(Path('/tmp/interoperability.json').read_text(encoding='utf-8'))
@@ -52,8 +55,6 @@ jobs:
               item == 'plugin-distribution=defeat-watermarker-fixture-text-detector==0.2.0'
               for item in reliability['adapter_runtime']
           )
-          reliability_id = reliability.pop('report_id')
-          assert content_digest(reliability) == reliability_id
 
           assert interoperability['schema_version'] == '0.2'
           pair = interoperability['pairs'][0]
@@ -66,8 +67,6 @@ jobs:
                   item == 'plugin-distribution=defeat-watermarker-fixture-text-detector==0.2.0'
                   for item in interoperability['adapter_runtime'][adapter_id]
               )
-          interoperability_id = interoperability.pop('report_id')
-          assert content_digest(interoperability) == interoperability_id
           PY
       - uses: actions/upload-artifact@v4
         with:
