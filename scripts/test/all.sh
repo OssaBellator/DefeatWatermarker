@@ -5,6 +5,7 @@ bash scripts/test/preflight.sh
 python -m pytest -q
 python scripts/test/benchmark_regression.py
 bash scripts/test/cli_smoke.sh
+bash scripts/test/conformance.sh
 bash scripts/test/benchmarks.sh
 bash scripts/test/batch.sh
 bash scripts/test/fixtures.sh
