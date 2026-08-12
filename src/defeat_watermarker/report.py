@@ -7,6 +7,7 @@ from typing import Any
 
 from .batch_verify import BatchVerificationError, verify_batch_directory
 from .benchmark_evidence import verify_benchmark_document
+from .detector_conformance import verify_conformance_document
 from .evidence import EvidenceError, load_evidence_document, verify_evidence_document
 from .scan_evidence import ScanEvidenceError, load_scan_document, verify_scan_document
 
@@ -241,6 +242,35 @@ def _benchmark_html(payload: dict[str, Any]) -> str:
     )
 
 
+def _conformance_html(payload: dict[str, Any]) -> str:
+    verification = verify_conformance_document(payload)
+    if not verification.valid or verification.report_id is None:
+        raise ReportError("detector conformance evidence failed integrity verification")
+    detection = payload.get("detection") or {}
+    rows = "".join(
+        f"<tr><td>{_escape(item)}</td></tr>" for item in payload.get("checks", [])
+    )
+    body = f"""
+<h2>Detector plugin</h2>
+<div class="meta">
+<div>Plugin</div><div>{_escape(payload.get('plugin_name'))}</div>
+<div>Adapter</div><div><code>{_escape(payload.get('adapter_id'))}</code></div>
+<div>Passed</div><div>{_bool(payload.get('passed'))}</div>
+<div>Artifact SHA-256</div><div><code>{_escape(payload.get('artifact', {}).get('sha256'))}</code></div>
+<div>Media type</div><div>{_escape(payload.get('artifact', {}).get('media_type'))}</div>
+<div>Detected</div><div>{_bool(detection.get('detected'))}</div>
+<div>Confidence</div><div>{_escape(detection.get('confidence'))}</div>
+</div>
+<h2>Conformance checks</h2>
+<table><thead><tr><th>Passed check</th></tr></thead><tbody>{rows}</tbody></table>
+"""
+    return _page(
+        "DefeatWatermarker detector conformance report",
+        verification.report_id,
+        body,
+    )
+
+
 def _batch_html(directory: Path) -> str:
     verification = verify_batch_directory(directory)
     if not verification.valid or verification.batch_id is None:
@@ -296,8 +326,10 @@ def render_report(input_path: Path) -> str:
         return _evaluation_html(payload)
     if "scan_id" in payload:
         return _scan_html(payload)
+    if "report_id" in payload and "plugin_name" in payload:
+        return _conformance_html(payload)
     if "report_id" in payload:
         return _benchmark_html(payload)
     raise ReportError(
-        "input is not recognized scan, evaluation, or benchmark evidence"
+        "input is not recognized scan, evaluation, benchmark, or conformance evidence"
     )
