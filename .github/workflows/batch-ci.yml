@@ -24,23 +24,16 @@ jobs:
           defeat-watermarker-batch fixtures/retests
           --scan-only
           --output-dir /tmp/defeat-watermarker-batch
-      - name: Verify every scan record offline
-        run: |
-          set -euo pipefail
-          for record in /tmp/defeat-watermarker-batch/records/*.json; do
-            defeat-watermarker-scan-verify "$record"
-          done
-      - name: Assert batch index integrity
+      - name: Verify batch index and every referenced record offline
+        run: defeat-watermarker-batch-verify /tmp/defeat-watermarker-batch
+      - name: Assert mixed-modality batch shape
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          from defeat_watermarker.digests import content_digest
 
           path = Path('/tmp/defeat-watermarker-batch/batch.json')
           payload = json.loads(path.read_text(encoding='utf-8'))
-          batch_id = payload.pop('batch_id')
-          assert content_digest(payload) == batch_id
           assert len(payload['records']) == 3  # README + text + image fixture
           assert all(item['mode'] == 'scan' for item in payload['records'])
           assert all(item['record_id'] for item in payload['records'])
