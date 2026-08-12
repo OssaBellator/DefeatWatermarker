@@ -9,6 +9,18 @@ from .io_utils import atomic_write_text
 from .signatures import SignatureError, load_signature, sign_evidence, verify_signature
 
 
+def _paths_alias(left: Path, right: Path) -> bool:
+    try:
+        if left.exists() and right.exists() and left.samefile(right):
+            return True
+    except OSError:
+        pass
+    try:
+        return left.resolve(strict=False) == right.resolve(strict=False)
+    except OSError:
+        return left.absolute() == right.absolute()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-evidence-signature",
@@ -38,6 +50,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         evidence = load_evidence_document(args.evidence)
         if args.command == "sign":
+            if _paths_alias(args.output, args.evidence):
+                raise SignatureError("signature output must not overwrite evidence input")
+            if _paths_alias(args.output, args.private_key):
+                raise SignatureError("signature output must not overwrite private key input")
             signature = sign_evidence(
                 evidence,
                 args.private_key,
