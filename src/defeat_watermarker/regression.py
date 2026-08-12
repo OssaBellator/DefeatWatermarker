@@ -228,6 +228,16 @@ def baseline_from_dict(payload: dict[str, Any]) -> RegressionBaseline:
         if extras:
             raise RegressionError(f"baseline has unknown fields: {', '.join(extras)}")
         raise RegressionError(f"baseline is missing fields: {', '.join(missing)}")
+    for field in (
+        "schema_version",
+        "baseline_id",
+        "version",
+        "source_evidence_id",
+        "suite_digest",
+        "adapter_runtime_digest",
+    ):
+        if not isinstance(payload[field], str):
+            raise RegressionError(f"baseline field {field} must be text")
     raw_metrics = payload["metrics"]
     if not isinstance(raw_metrics, dict):
         raise RegressionError("baseline metrics must be an object")
@@ -248,12 +258,12 @@ def baseline_from_dict(payload: dict[str, Any]) -> RegressionBaseline:
             raise RegressionError(f"baseline metric {key} values must be numeric")
         metrics.append((key, RegressionMetric(float(baseline), float(max_drop))))
     return RegressionBaseline(
-        schema_version=str(payload["schema_version"]),
-        baseline_id=str(payload["baseline_id"]),
-        version=str(payload["version"]),
-        source_evidence_id=str(payload["source_evidence_id"]),
-        suite_digest=str(payload["suite_digest"]),
-        adapter_runtime_digest=str(payload["adapter_runtime_digest"]),
+        schema_version=payload["schema_version"],
+        baseline_id=payload["baseline_id"],
+        version=payload["version"],
+        source_evidence_id=payload["source_evidence_id"],
+        suite_digest=payload["suite_digest"],
+        adapter_runtime_digest=payload["adapter_runtime_digest"],
         metrics=tuple(metrics),
     )
 
