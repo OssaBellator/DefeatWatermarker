@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/evidence-signature-v0.1.schema.json",
+  "title": "DefeatWatermarker detached evidence signature v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "signature_id",
+    "schema_version",
+    "algorithm",
+    "key_id",
+    "evidence_id",
+    "public_key_sha256",
+    "signature"
+  ],
+  "properties": {
+    "signature_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "schema_version": {"const": "0.1"},
+    "algorithm": {"const": "ed25519"},
+    "key_id": {"type": "string", "minLength": 1, "maxLength": 255},
+    "evidence_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "public_key_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "signature": {"type": "string", "minLength": 1, "maxLength": 512, "contentEncoding": "base64"}
+  }
+}
