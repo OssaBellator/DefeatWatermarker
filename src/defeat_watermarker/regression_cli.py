@@ -79,7 +79,10 @@ def main(argv: list[str] | None = None) -> int:
                 version=args.version,
                 max_drop=args.max_drop,
             )
-            _emit({"baseline_digest": baseline.digest, **baseline.to_dict()}, args.output)
+            # Emit the published baseline schema exactly. baseline.digest is derived from
+            # this document and is bound into later comparison reports; storing it here
+            # would make the CLI create a file that load_regression_baseline rejects.
+            _emit(baseline.to_dict(), args.output)
             return 0
         if args.command == "check":
             _reject_output_alias(args.output, args.baseline, args.evidence)
