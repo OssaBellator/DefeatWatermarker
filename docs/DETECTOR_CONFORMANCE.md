@@ -14,15 +14,19 @@ defeat-watermarker-detector-conformance run \
 
 A passing run checks that:
 
-- the adapter runtime identity is stable and bounded;
-- the adapter declares `detect` and does not expose a `remove` capability;
+- the adapter runtime identity is bounded, deterministic before detection, and unchanged after detection;
+- repeated `capabilities()` calls are deterministic;
+- the adapter declares `detect` and does not expose a `remove` capability or method;
+- repeated `supports()` calls for the same artifact are deterministic and return booleans;
 - the adapter supports the supplied artifact modality;
 - `detect()` returns a `DetectionResult` whose `adapter_id` and watermark family match the adapter;
-- two detector calls over identical source bytes produce identical evidence;
-- the source artifact hash remains unchanged;
-- the emitted detection object follows the strict `DetectionResult` evidence shape.
+- two detector calls over identical source state produce identical evidence;
+- the artifact byte hash, byte length, media type, name and modality remain unchanged after `supports()` and after each detector call;
+- the emitted detection object follows the strict bounded `DetectionResult` evidence shape.
 
-The source bytes are not embedded in the report. The artifact is represented by SHA-256, byte length, media type and modality.
+The source bytes and source name are not embedded in the report. The artifact is represented by SHA-256, byte length, media type and modality; the name is compared only inside the conformance process to detect plugin-side mutation.
+
+This is a contract check, not a security sandbox. Explicitly loading a detector plugin executes local third-party Python code, so plugin packages still need the same trust/review treatment as other executable dependencies.
 
 ## Verify
 
@@ -53,6 +57,8 @@ def runtime_identity(self):
 
 Those strings become part of the conformance report and all normal detector evidence. The hook is descriptive only: do not expose secrets, keys, weights, gradients, detector locations or other sensitive internals.
 
+The conformance runner samples this identity before detector calls and again afterward. A detector that changes its declared model/configuration identity as a side effect of detection fails qualification.
+
 ## Static report
 
 Verified conformance evidence can be rendered locally:
@@ -71,4 +77,4 @@ The checked-in synthetic provider plugin is exercised end to end with:
 bash scripts/test/conformance.sh
 ```
 
-That script loads the plugin by its installed entry point, runs conformance, verifies the resulting JSON, renders the HTML view and asserts the static-report boundary.
+That script loads the plugin by its installed entry point, runs conformance, verifies the resulting JSON, renders the HTML view and asserts the static-report boundary plus all required state/determinism checks.
