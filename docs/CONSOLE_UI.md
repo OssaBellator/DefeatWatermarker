@@ -48,11 +48,50 @@ The JSON file contains the complete evaluation evidence bundle. It does not cont
 
 ## Scan only
 
-To inspect the detector/model outputs without executing an attack suite:
+To inspect detector/model outputs without executing an attack suite:
 
 ```bash
-defeat-watermarker-ui artifact.jpg --scan-only
+defeat-watermarker-ui artifact.jpg \
+  --scan-only \
+  --json-output scan.json
 ```
+
+Detector-only JSON is also content-addressed. It binds:
+
+- source SHA-256 and byte length, without source bytes;
+- media type/modality;
+- detector runtime identities;
+- exact detector/model results;
+- a deterministic `scan_id` over the whole scan core.
+
+Verify it offline:
+
+```bash
+defeat-watermarker-scan-verify scan.json
+```
+
+Changing a detector confidence, validation state, provenance identifier, runtime identity or source reference after the scan invalidates the `scan_id`.
+
+## Provider detector plugins
+
+Installed read-only detector plugins are discoverable without importing them:
+
+```bash
+defeat-watermarker-ui --list-detector-plugins
+```
+
+Enable a detector explicitly by entry-point name:
+
+```bash
+defeat-watermarker-ui artifact.txt \
+  --media-type text/plain \
+  --detector-plugin provider-text-v1 \
+  --json-output evidence.json
+```
+
+The option is repeatable. External detector distribution name/version is included in runtime evidence when Python package metadata can resolve it.
+
+See [`DETECTOR_PLUGINS.md`](DETECTOR_PLUGINS.md) for the plugin boundary. There is intentionally no equivalent external mutation-plugin entry point.
 
 ## Custom suite
 
@@ -82,4 +121,15 @@ defeat-watermarker-ui asset.jpg \
 
 When the optional C2PA integration is installed, the baseline and post-attack tables include the C2PA verification/trust state.
 
-The UI is intentionally an evidence viewer and attack runner, not a transformed-media exporter. Derivatives stay inside the evaluator and only their hashes, lengths, runtime identities, and detector outcomes are reported.
+The UI is intentionally an evidence viewer and fixed attack runner, not a transformed-media exporter. Derivatives stay inside the evaluator and only their hashes, lengths, runtime identities, and detector outcomes are reported.
+
+## Multiple artifacts
+
+For corpus/regression runs, use the bounded batch front end rather than scripting the UI yourself:
+
+```bash
+defeat-watermarker-batch ./corpus --output-dir /tmp/dwm-batch
+defeat-watermarker-batch-verify /tmp/dwm-batch
+```
+
+See [`BATCH.md`](BATCH.md) for bounds, mixed scan/attack behavior and the content-addressed batch layout.
