@@ -88,26 +88,34 @@ class EvidenceSignature:
 
     def __post_init__(self) -> None:
         if (
-            not self.key_id
+            not isinstance(self.key_id, str)
+            or not self.key_id
             or len(self.key_id) > 255
             or "\x00" in self.key_id
             or "\r" in self.key_id
             or "\n" in self.key_id
         ):
             raise SignatureError(
-                "key_id is missing, too long, or contains a control separator"
+                "key_id must be bounded single-line text without NUL"
             )
         for noun, digest in (
             ("evidence_id", self.evidence_id),
             ("public_key_sha256", self.public_key_sha256),
         ):
-            if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+            if (
+                not isinstance(digest, str)
+                or len(digest) != 64
+                or any(char not in "0123456789abcdef" for char in digest)
+            ):
                 raise SignatureError(f"{noun} must be a lowercase SHA-256 digest")
         if self.algorithm != "ed25519":
             raise SignatureError("unsupported signature algorithm")
         if self.schema_version != "0.1":
             raise SignatureError("unsupported signature schema_version")
-        if len(self.signature) != _ED25519_SIGNATURE_BYTES:
+        if (
+            not isinstance(self.signature, bytes)
+            or len(self.signature) != _ED25519_SIGNATURE_BYTES
+        ):
             raise SignatureError(
                 f"Ed25519 signature must contain exactly {_ED25519_SIGNATURE_BYTES} bytes"
             )
