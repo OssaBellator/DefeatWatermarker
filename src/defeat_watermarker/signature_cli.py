@@ -29,6 +29,16 @@ def _paths_alias(left: Path, right: Path) -> bool:
         return left.absolute() == right.absolute()
 
 
+def _reject_output_alias(output: Path | None, *inputs: Path) -> None:
+    if output is None:
+        return
+    for input_path in inputs:
+        if _paths_alias(output, input_path):
+            raise SignatureError(
+                f"signature command output must not overwrite input: {input_path.name}"
+            )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="defeat-watermarker-signature",
@@ -56,10 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         evidence = load_evidence_document(args.evidence)
         if args.command == "sign":
-            if args.output is not None and _paths_alias(args.output, args.evidence):
-                raise SignatureError("signature output must not overwrite evidence input")
-            if args.output is not None and _paths_alias(args.output, args.private_key):
-                raise SignatureError("signature output must not overwrite private key input")
+            _reject_output_alias(args.output, args.evidence, args.private_key)
             signature = sign_evidence(
                 evidence,
                 args.private_key,
@@ -68,6 +75,12 @@ def main(argv: list[str] | None = None) -> int:
             _emit(signature.to_dict(), args.output)
             return 0
         if args.command == "verify":
+            _reject_output_alias(
+                args.output,
+                args.evidence,
+                args.signature,
+                args.public_key,
+            )
             signature = load_signature(args.signature)
             result = verify_signature(evidence, signature, args.public_key)
             _emit(result.to_dict(), args.output)
