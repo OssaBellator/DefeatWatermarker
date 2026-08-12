@@ -1,0 +1,23 @@
+{
+  "schema_version": "0.1",
+  "corpus_id": "builtin-container-hints-smoke",
+  "version": "0.1",
+  "adapter_id": "builtin.container-hints.v1",
+  "description": "Tiny smoke corpus proving the fixed reliability-runner contract. It is not a statistically meaningful detector benchmark.",
+  "cases": [
+    {
+      "case_id": "positive-c2pa-marker",
+      "path": "positive.dat",
+      "media_type": "application/octet-stream",
+      "modality": "unknown",
+      "expected_detected": true
+    },
+    {
+      "case_id": "negative-plain",
+      "path": "negative.dat",
+      "media_type": "application/octet-stream",
+      "modality": "unknown",
+      "expected_detected": false
+    }
+  ]
+}

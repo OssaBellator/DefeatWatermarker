@@ -1,0 +1,3 @@
+Synthetic interoperability case where both fixture detectors should fire.
+DefeatWatermarker UI testing
+DefeatWatermarker secondary detector marker

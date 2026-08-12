@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/regression-baseline-v0.1.schema.json",
+  "title": "DefeatWatermarker robustness regression baseline v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "baseline_id",
+    "version",
+    "source_evidence_id",
+    "suite_digest",
+    "adapter_runtime_digest",
+    "metrics"
+  ],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "baseline_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"},
+    "version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "source_evidence_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "suite_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "adapter_runtime_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "metrics": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "survival_rate": {"$ref": "#/$defs/metric"},
+        "verification_survival_rate": {"$ref": "#/$defs/metric"},
+        "trust_survival_rate": {"$ref": "#/$defs/metric"},
+        "provenance_id_preservation_rate": {"$ref": "#/$defs/metric"}
+      }
+    }
+  },
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "max_drop"],
+      "properties": {
+        "baseline": {"type": "number", "minimum": 0, "maximum": 1},
+        "max_drop": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}

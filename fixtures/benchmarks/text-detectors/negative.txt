@@ -1,0 +1,2 @@
+Synthetic labelled negative for DefeatWatermarker reliability regression.
+No fixture detector markers are present in this document.

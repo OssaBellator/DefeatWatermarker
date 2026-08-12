@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1",
+  "suite_id": "image-platform-rendition",
+  "version": "0.1",
+  "description": "Fixed detector-blind image transformations representing ordinary platform rendition, resizing, cropping, and generational recompression. Derivatives are evaluated in memory and are not exported.",
+  "scenarios": [
+    {
+      "scenario_id": "jpeg-q85",
+      "mutation_id": "image.jpeg-reencode.q85.v1",
+      "modality": "image",
+      "transformation_family": "reencode",
+      "severity": "low",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "resize-75-jpeg-q85",
+      "mutation_id": "image.resize-75pct.jpeg-q85.v1",
+      "modality": "image",
+      "transformation_family": "resize",
+      "severity": "medium",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "center-crop-90-jpeg-q85",
+      "mutation_id": "image.center-crop-90pct.jpeg-q85.v1",
+      "modality": "image",
+      "transformation_family": "crop",
+      "severity": "medium",
+      "generation_count": 1
+    },
+    {
+      "scenario_id": "jpeg-q85-three-generations",
+      "mutation_id": "image.jpeg-reencode.q85.v1",
+      "modality": "image",
+      "transformation_family": "generational-reencode",
+      "severity": "high",
+      "generation_count": 3
+    }
+  ]
+}

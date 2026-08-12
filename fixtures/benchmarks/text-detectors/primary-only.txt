@@ -1,0 +1,3 @@
+Synthetic interoperability disagreement case.
+DefeatWatermarker UI testing
+The secondary fixture marker is intentionally absent.

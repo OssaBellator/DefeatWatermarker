@@ -1,0 +1,192 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+from .provenance import ProvenanceGraph
+
+
+class Modality(str, Enum):
+    IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    TEXT = "text"
+    DOCUMENT = "document"
+    BINARY = "binary"
+    UNKNOWN = "unknown"
+
+
+class MarkFamily(str, Enum):
+    METADATA = "metadata"
+    SIGNED_PROVENANCE = "signed_provenance"
+    PERCEPTUAL = "perceptual"
+    STATISTICAL = "statistical"
+    FINGERPRINT = "fingerprint"
+    REGISTRY = "registry"
+    HARDWARE_ATTESTATION = "hardware_attestation"
+    UNKNOWN = "unknown"
+
+
+class VerificationState(str, Enum):
+    NOT_EVALUATED = "not_evaluated"
+    WELL_FORMED = "well_formed"
+    VALID = "valid"
+    TRUSTED = "trusted"
+    INVALID = "invalid"
+    ERROR = "error"
+
+
+@dataclass(frozen=True, slots=True)
+class Artifact:
+    data: bytes = field(repr=False)
+    media_type: str = "application/octet-stream"
+    name: str = "artifact"
+    modality: Modality = Modality.UNKNOWN
+
+
+@dataclass(frozen=True, slots=True)
+class DetectionResult:
+    adapter_id: str
+    family: MarkFamily
+    detected: bool
+    confidence: float
+    evidence: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    provenance_identifier: str | None = None
+    cryptographically_verified: bool = False
+    registry_verified: bool = False
+    verification_state: VerificationState = VerificationState.NOT_EVALUATED
+    validation_codes: tuple[str, ...] = ()
+    provenance_graph: ProvenanceGraph | None = None
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError("confidence must be between 0.0 and 1.0")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "adapter_id": self.adapter_id,
+            "family": self.family.value,
+            "detected": self.detected,
+            "confidence": self.confidence,
+            "evidence": list(self.evidence),
+            "warnings": list(self.warnings),
+            "provenance_identifier": self.provenance_identifier,
+            "cryptographically_verified": self.cryptographically_verified,
+            "registry_verified": self.registry_verified,
+            "verification_state": self.verification_state.value,
+            "validation_codes": list(self.validation_codes),
+            "provenance_graph": (
+                self.provenance_graph.to_dict() if self.provenance_graph is not None else None
+            ),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class MutationScenario:
+    scenario_id: str
+    mutation_id: str
+    modality: Modality
+    transformation_family: str
+    severity: str = "control"
+    generation_count: int = 1
+
+    def __post_init__(self) -> None:
+        if self.generation_count < 1:
+            raise ValueError("generation_count must be at least 1")
+
+
+@dataclass(frozen=True, slots=True)
+class DetectionComparison:
+    adapter_id: str
+    baseline: DetectionResult
+    after: DetectionResult
+
+    @property
+    def survived(self) -> bool:
+        return self.baseline.detected and self.after.detected
+
+    @property
+    def confidence_delta(self) -> float:
+        return self.after.confidence - self.baseline.confidence
+
+    @property
+    def verification_survived(self) -> bool | None:
+        if not self.baseline.cryptographically_verified:
+            return None
+        return self.after.cryptographically_verified
+
+    @property
+    def trust_survived(self) -> bool | None:
+        if self.baseline.verification_state is not VerificationState.TRUSTED:
+            return None
+        return self.after.verification_state is VerificationState.TRUSTED
+
+    @property
+    def provenance_identifier_preserved(self) -> bool | None:
+        if self.baseline.provenance_identifier is None:
+            return None
+        return self.after.provenance_identifier == self.baseline.provenance_identifier
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "adapter_id": self.adapter_id,
+            "survived": self.survived,
+            "confidence_delta": self.confidence_delta,
+            "verification_survived": self.verification_survived,
+            "trust_survived": self.trust_survived,
+            "provenance_identifier_preserved": self.provenance_identifier_preserved,
+            "baseline": self.baseline.to_dict(),
+            "after": self.after.to_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ScenarioEvaluation:
+    scenario: MutationScenario
+    comparisons: tuple[DetectionComparison, ...]
+    derivative_sha256: str
+    derivative_byte_length: int
+    derivative_media_type: str
+    mutation_runtime: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scenario": {
+                "scenario_id": self.scenario.scenario_id,
+                "mutation_id": self.scenario.mutation_id,
+                "modality": self.scenario.modality.value,
+                "transformation_family": self.scenario.transformation_family,
+                "severity": self.scenario.severity,
+                "generation_count": self.scenario.generation_count,
+            },
+            "derivative": {
+                "sha256": self.derivative_sha256,
+                "byte_length": self.derivative_byte_length,
+                "media_type": self.derivative_media_type,
+            },
+            "mutation_runtime": list(self.mutation_runtime),
+            "comparisons": [item.to_dict() for item in self.comparisons],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationReport:
+    artifact_name: str
+    media_type: str
+    baseline: tuple[DetectionResult, ...]
+    scenarios: tuple[ScenarioEvaluation, ...]
+    adapter_runtime: tuple[tuple[str, tuple[str, ...]], ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "artifact_name": self.artifact_name,
+            "media_type": self.media_type,
+            "adapter_runtime": {
+                adapter_id: list(identity)
+                for adapter_id, identity in self.adapter_runtime
+            },
+            "baseline": [item.to_dict() for item in self.baseline],
+            "scenarios": [item.to_dict() for item in self.scenarios],
+        }

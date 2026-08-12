@@ -1,0 +1,10 @@
+C2PA synthetic text regression fixture.
+
+This is generated sample text for repeatable DefeatWatermarker UI testing.
+It is not a real watermark, provenance credential, or claim of AI origin.
+
+A decomposed Unicode example follows: Café provenance should remain readable.
+This line intentionally has trailing horizontal whitespace.   
+The next line uses ordinary punctuation — commas, quotes “like this”, and symbols © 2026.
+
+The semantic content should remain unchanged by the built-in editorial-normalization attacks.

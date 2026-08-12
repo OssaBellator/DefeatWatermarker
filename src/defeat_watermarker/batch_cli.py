@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from .batch import BatchError, run_batch
+from .io_utils import atomic_write_text
+
+
+def _validate_output_dir(input_path: Path, output_dir: Path) -> None:
+    if output_dir.exists() and output_dir.is_symlink():
+        raise BatchError("batch output directory must not be a symlink")
+    if output_dir.exists():
+        if not output_dir.is_dir():
+            raise BatchError("batch output path must be a directory")
+        if any(output_dir.iterdir()):
+            raise BatchError("batch output directory must be empty")
+
+    if input_path.exists() and input_path.is_dir():
+        input_root = input_path.resolve()
+        output_root = output_dir.resolve()
+        if output_root == input_root or output_root.is_relative_to(input_root):
+            raise BatchError("batch output directory must be outside the input tree")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="defeat-watermarker-batch",
+        description=(
+            "Run fixed anti-watermark suites or detector-only scans across a bounded set "
+            "of artifacts and emit a content-addressed batch index."
+        ),
+    )
+    parser.add_argument("input", type=Path)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--recursive", action="store_true")
+    parser.add_argument("--scan-only", action="store_true")
+    parser.add_argument("--c2pa-trust-anchors", type=Path)
+    parser.add_argument(
+        "--detector-plugin",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="explicitly load one installed read-only detector plugin; repeatable",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        _validate_output_dir(args.input, args.output_dir)
+        result = run_batch(
+            args.input,
+            recursive=args.recursive,
+            scan_only=args.scan_only,
+            trust_anchors=args.c2pa_trust_anchors,
+            detector_plugins=tuple(args.detector_plugin),
+        )
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+        records_dir = args.output_dir / "records"
+        records_dir.mkdir(parents=True, exist_ok=True)
+
+        for record in result.records:
+            if record.record is None or record.record_id is None:
+                continue
+            atomic_write_text(
+                records_dir / f"{record.record_id}.json",
+                json.dumps(record.record, indent=2, sort_keys=True) + "\n",
+            )
+        atomic_write_text(
+            args.output_dir / "batch.json",
+            json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n",
+        )
+    except (OSError, UnicodeError, BatchError, ValueError, KeyError) as exc:
+        parser.error(str(exc))
+
+    print(f"Batch ID: {result.batch_id}")
+    print(f"Artifacts: {len(result.records)}")
+    print(f"Failures: {result.failed_records}")
+    print(f"Batch index: {args.output_dir / 'batch.json'}")
+    return 0 if result.failed_records == 0 else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

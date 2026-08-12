@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "defeat-watermarker"
+version = "0.1.0"
+description = "Anti-watermark red-team harness for AI watermark and provenance robustness"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "DefeatWatermarker contributors"}]
+dependencies = []
+
+[project.optional-dependencies]
+c2pa = ["c2pa-python>=0.33,<1"]
+image = ["Pillow>=12.3,<13"]
+signing = ["cryptography>=46,<47"]
+dev = ["pytest>=8,<9", "Pillow>=12.3,<13"]
+
+[project.scripts]
+defeat-watermarker = "defeat_watermarker.cli:main"
+defeat-watermarker-attack = "defeat_watermarker.attack_cli:main"
+defeat-watermarker-ui = "defeat_watermarker.ui_cli:main"
+defeat-watermarker-scan-verify = "defeat_watermarker.scan_cli:main"
+defeat-watermarker-batch = "defeat_watermarker.batch_cli:main"
+defeat-watermarker-batch-verify = "defeat_watermarker.batch_verify_cli:main"
+defeat-watermarker-benchmark-verify = "defeat_watermarker.benchmark_verify_cli:main"
+defeat-watermarker-benchmark-baseline = "defeat_watermarker.benchmark_baseline_cli:main"
+defeat-watermarker-detector-conformance = "defeat_watermarker.detector_conformance_cli:main"
+defeat-watermarker-regression = "defeat_watermarker.regression_cli:main"
+defeat-watermarker-signature = "defeat_watermarker.signature_cli:main"
+defeat-watermarker-report = "defeat_watermarker.report_cli:main"
+
+[tool.uv]
+exclude-newer = "2026-08-12T10:45:00Z"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

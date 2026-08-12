@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OssaBellator/DefeatWatermarker/schemas/detector-conformance-v0.1.schema.json",
+  "title": "DefeatWatermarker detector conformance report v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "schema_version",
+    "plugin_name",
+    "adapter_id",
+    "artifact",
+    "runtime_identity",
+    "passed",
+    "checks",
+    "errors",
+    "detection"
+  ],
+  "properties": {
+    "report_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "schema_version": {"const": "0.1"},
+    "plugin_name": {"type": "string", "minLength": 1, "maxLength": 128},
+    "adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "byte_length", "media_type", "modality"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "byte_length": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string", "minLength": 1},
+        "modality": {"type": "string", "minLength": 1}
+      }
+    },
+    "runtime_identity": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {"type": "string", "minLength": 1, "maxLength": 512}
+    },
+    "passed": {"type": "boolean"},
+    "checks": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "errors": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {"type": "string", "minLength": 1, "maxLength": 1024}
+    },
+    "detection": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "adapter_id",
+            "family",
+            "detected",
+            "confidence",
+            "evidence",
+            "warnings",
+            "provenance_identifier",
+            "cryptographically_verified",
+            "registry_verified",
+            "verification_state",
+            "validation_codes",
+            "provenance_graph"
+          ],
+          "properties": {
+            "adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "family": {"type": "string", "minLength": 1},
+            "detected": {"type": "boolean"},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "evidence": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {"type": "string", "maxLength": 2048}
+            },
+            "warnings": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {"type": "string", "maxLength": 2048}
+            },
+            "provenance_identifier": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "string", "maxLength": 2048}
+              ]
+            },
+            "cryptographically_verified": {"type": "boolean"},
+            "registry_verified": {"type": "boolean"},
+            "verification_state": {"type": "string", "minLength": 1},
+            "validation_codes": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {"type": "string", "maxLength": 2048}
+            },
+            "provenance_graph": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "object"}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

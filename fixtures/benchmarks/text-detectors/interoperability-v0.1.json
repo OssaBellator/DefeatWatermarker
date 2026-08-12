@@ -1,0 +1,30 @@
+{
+  "schema_version": "0.1",
+  "matrix_id": "fixture-text-detector-interoperability",
+  "version": "0.1",
+  "description": "Synthetic pairwise matrix with one deliberate detector disagreement; validates explicit plugin loading and runtime-bound interoperability reporting.",
+  "adapter_ids": [
+    "fixture.text-marker.v1",
+    "fixture.text-secondary.v1"
+  ],
+  "cases": [
+    {
+      "case_id": "both",
+      "path": "both.txt",
+      "media_type": "text/plain",
+      "modality": "text"
+    },
+    {
+      "case_id": "primary-only",
+      "path": "primary-only.txt",
+      "media_type": "text/plain",
+      "modality": "text"
+    },
+    {
+      "case_id": "neither",
+      "path": "neither.txt",
+      "media_type": "text/plain",
+      "modality": "text"
+    }
+  ]
+}
