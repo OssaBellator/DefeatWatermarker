@@ -39,3 +39,33 @@ jobs:
         run: >-
           python -c "from defeat_watermarker.adapters.c2pa import C2paPythonBackend;
           assert C2paPythonBackend.available()"
+
+  video-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Create bounded synthetic video fixture
+        run: >-
+          ffmpeg -hide_banner -loglevel error -f lavfi
+          -i testsrc=size=64x64:rate=2 -t 1
+          -c:v libx264 -pix_fmt yuv420p /tmp/source.mp4
+      - name: Run fixed video robustness suite
+        run: >-
+          python -m defeat_watermarker evaluate /tmp/source.mp4
+          --media-type video/mp4
+          --suite suites/video-platform-v0.1.json
+          --output /tmp/video-evidence.json
+      - name: Verify video evidence bindings offline
+        run: >-
+          python -m defeat_watermarker evidence verify /tmp/video-evidence.json
+          --suite suites/video-platform-v0.1.json
