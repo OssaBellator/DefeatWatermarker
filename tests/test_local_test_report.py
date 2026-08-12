@@ -13,9 +13,10 @@ SPEC.loader.exec_module(RECORDED)
 
 def _report() -> dict[str, object]:
     core = {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
         "suite": "core",
         "git_commit": None,
+        "git_dirty": None,
         "python_version": "3.13.5",
         "python_implementation": "CPython",
         "steps": [
@@ -95,3 +96,26 @@ def test_rehashed_renamed_step_is_rejected() -> None:
 
     assert valid is False
     assert "step 0 name does not match selected suite" in errors
+
+
+def test_git_dirty_requires_commit() -> None:
+    payload = _report()
+    payload["git_dirty"] = True
+    _rebind(payload)
+
+    valid, errors = RECORDED.verify_report(payload)
+
+    assert valid is False
+    assert "git_dirty must be null when git_commit is unavailable" in errors
+
+
+def test_git_dirty_must_be_boolean_or_null() -> None:
+    payload = _report()
+    payload["git_commit"] = "a" * 40
+    payload["git_dirty"] = "yes"
+    _rebind(payload)
+
+    valid, errors = RECORDED.verify_report(payload)
+
+    assert valid is False
+    assert "git_dirty must be boolean or null" in errors
