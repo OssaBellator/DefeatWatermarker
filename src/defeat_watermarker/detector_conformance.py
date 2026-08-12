@@ -16,6 +16,8 @@ _MAX_ERRORS = 32
 _MAX_ERROR_LENGTH = 1024
 _MAX_RUNTIME_ITEMS = 32
 _MAX_RUNTIME_ITEM_LENGTH = 512
+_MAX_DETECTION_ITEMS = 128
+_MAX_DETECTION_ITEM_LENGTH = 2048
 _REQUIRED_PASS_CHECKS = {
     "runtime_identity",
     "read_only_capability",
@@ -24,6 +26,20 @@ _REQUIRED_PASS_CHECKS = {
     "family_match",
     "deterministic_detection",
     "source_unchanged",
+}
+_DETECTION_FIELDS = {
+    "adapter_id",
+    "family",
+    "detected",
+    "confidence",
+    "evidence",
+    "warnings",
+    "provenance_identifier",
+    "cryptographically_verified",
+    "registry_verified",
+    "verification_state",
+    "validation_codes",
+    "provenance_graph",
 }
 
 
@@ -182,6 +198,69 @@ def run_detector_conformance(
     )
 
 
+def _validate_detection(
+    value: Any,
+    adapter_id: str,
+    errors: list[str],
+) -> bool:
+    if not isinstance(value, dict) or set(value) != _DETECTION_FIELDS:
+        errors.append("detection evidence has invalid fields")
+        return False
+    if value.get("adapter_id") != adapter_id:
+        errors.append("detection adapter_id does not match report adapter_id")
+        return False
+    if not isinstance(value.get("family"), str) or not value["family"]:
+        errors.append("detection family is invalid")
+        return False
+    if type(value.get("detected")) is not bool:
+        errors.append("detection detected must be boolean")
+        return False
+    confidence = value.get("confidence")
+    if (
+        not isinstance(confidence, (int, float))
+        or isinstance(confidence, bool)
+        or not 0.0 <= float(confidence) <= 1.0
+    ):
+        errors.append("detection confidence must be between 0 and 1")
+        return False
+    for name in ("evidence", "warnings", "validation_codes"):
+        items = value.get(name)
+        if (
+            not isinstance(items, list)
+            or len(items) > _MAX_DETECTION_ITEMS
+            or any(
+                not isinstance(item, str)
+                or len(item) > _MAX_DETECTION_ITEM_LENGTH
+                for item in items
+            )
+        ):
+            errors.append(f"detection {name} is invalid or unbounded")
+            return False
+    provenance_identifier = value.get("provenance_identifier")
+    if provenance_identifier is not None and (
+        not isinstance(provenance_identifier, str)
+        or len(provenance_identifier) > _MAX_DETECTION_ITEM_LENGTH
+    ):
+        errors.append("detection provenance_identifier is invalid or unbounded")
+        return False
+    for name in ("cryptographically_verified", "registry_verified"):
+        if type(value.get(name)) is not bool:
+            errors.append(f"detection {name} must be boolean")
+            return False
+    if (
+        not isinstance(value.get("verification_state"), str)
+        or not value["verification_state"]
+    ):
+        errors.append("detection verification_state is invalid")
+        return False
+    if value.get("provenance_graph") is not None and not isinstance(
+        value["provenance_graph"], dict
+    ):
+        errors.append("detection provenance_graph must be an object or null")
+        return False
+    return True
+
+
 def verify_conformance_document(
     payload: dict[str, Any],
 ) -> DetectorConformanceVerification:
@@ -295,11 +374,9 @@ def verify_conformance_document(
             report_checks
         ):
             errors.append("passing conformance report is missing required checks")
-        if not isinstance(payload.get("detection"), dict):
-            errors.append("passing conformance report must contain detection evidence")
-        elif payload["detection"].get("adapter_id") != payload.get("adapter_id"):
-            errors.append("detection adapter_id does not match report adapter_id")
-        else:
+        if _validate_detection(
+            payload.get("detection"), str(payload.get("adapter_id")), errors
+        ):
             checks.append("status_semantics")
     elif payload.get("detection") is not None and not isinstance(
         payload.get("detection"), dict
