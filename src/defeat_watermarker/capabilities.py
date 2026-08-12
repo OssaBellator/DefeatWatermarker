@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .adapters.c2pa import C2paPythonBackend
+from .detector_plugins import discover_detector_plugins
 from .models import MarkFamily, Modality
 from .mutations.image import pillow_available
 from .mutations.video import ffmpeg_available
@@ -166,7 +167,7 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
             modalities=(Modality.AUDIO,),
         ),
         ComponentCapability(
-            component_id="audio.wav-pcm16.resample-16khz.v1",
+            component_id="audio.wav-pcm16.resample16khz.v1",
             component_type="mutation",
             available=True,
             modalities=(Modality.AUDIO,),
@@ -208,6 +209,10 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
 
 def capability_document() -> dict[str, Any]:
     return {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
         "components": [item.to_dict() for item in builtin_capabilities()],
+        "installed_detector_plugins": [
+            item.to_dict() for item in discover_detector_plugins()
+        ],
+        "plugin_loading": "explicit_opt_in",
     }
