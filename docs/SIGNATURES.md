@@ -1,6 +1,6 @@
 # Detached evidence signatures
 
-Content addressing proves internal byte identity; it does not identify who approved or published an evidence bundle. The optional signing layer adds a detached Ed25519 signature over the already-verified evidence ID.
+Content addressing proves internal byte identity; it does not identify who approved or published an evidence bundle. The optional signing layer adds a detached Ed25519 signature over the already-verified evaluation-evidence ID.
 
 Install the signing extra:
 
@@ -8,24 +8,44 @@ Install the signing extra:
 pip install -e '.[signing]'
 ```
 
-Create a detached signature:
+## Sign
+
+Use an unencrypted Ed25519 private key in PEM/PKCS#8 form:
 
 ```bash
-defeat-watermarker-signature sign evidence.json \
+defeat-watermarker-evidence-signature sign evidence.json \
   --private-key release-ed25519.pem \
   --key-id release-2026 \
   --output evidence.sig.json
 ```
 
-Verify it:
+The signer first performs normal evidence self-consistency verification. It then signs a domain-separated message containing the 32-byte evidence ID. Invalid or internally inconsistent evidence is not signed.
+
+The detached signature document records the content-addressed `signature_id`, evidence ID, human-managed key ID, public-key SHA-256 fingerprint, algorithm and base64 signature. Private-key bytes are never serialized.
+
+On POSIX systems the signing command refuses a private-key file that is group/world readable or writable. The command also refuses an output path that aliases either the evidence input or the private-key input, preventing accidental overwrite of signing material.
+
+## Verify
 
 ```bash
-defeat-watermarker-signature verify evidence.json evidence.sig.json \
+defeat-watermarker-evidence-signature verify \
+  evidence.json \
+  evidence.sig.json \
   --public-key release-ed25519.pub.pem
 ```
 
-The signer first performs normal evidence self-consistency verification. It then signs a domain-separated message containing the 32-byte evidence ID. The detached signature document records the evidence ID, human-managed key ID, public-key SHA-256 fingerprint, algorithm and signature. Private-key bytes are never serialized.
+Verification checks the evidence document, detached signature document, public-key fingerprint and Ed25519 signature. A valid verification returns exit code `0`; a cryptographic or fingerprint mismatch returns exit code `4`. Malformed input uses the normal argparse error path.
 
-On POSIX systems the signing command refuses a private-key file that is group/world readable or writable. The current implementation accepts unencrypted PEM Ed25519 private keys; deployments with stronger key-management requirements should place signing behind an HSM/KMS-backed release step rather than copying private material into CI workspaces.
+The current implementation accepts unencrypted PEM Ed25519 private keys. Deployments with stronger key-management requirements should place signing behind an HSM/KMS-backed release step rather than copying private material into automation workspaces.
 
-A valid signature proves only that the holder of the corresponding key signed that evidence ID. Trust in the key identity, release process, detector implementation and underlying robustness evidence remains an external policy decision.
+A valid signature proves only that the holder of the corresponding key signed that evidence ID. Trust in the key identity, release process, detector implementation and underlying robustness evidence remains an external policy decision. This mechanism is separate from C2PA signatures carried by media assets themselves.
+
+## Local regression
+
+The optional local signing suite exercises both the library and CLI paths with ephemeral keys:
+
+```bash
+bash scripts/test/signing.sh
+```
+
+The tests cover successful sign/verify, wrong-key rejection, private-material exclusion and input-overwrite protection.
