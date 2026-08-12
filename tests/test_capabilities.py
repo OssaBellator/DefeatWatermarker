@@ -10,6 +10,7 @@ def test_capability_document_has_stable_component_ids() -> None:
     assert "c2pa.reader.v1" in ids
     assert "c2pa.manifest-fetch.bounded.v1" in ids
     assert "evidence.signature.ed25519.v1" in ids
+    assert "regression.fixed-suite-baseline.v1" in ids
     assert "image.jpeg-reencode.q85.v1" in ids
     assert "audio.wav-pcm16.resample-16khz.v1" in ids
     assert "detector.conformance.read-only.v1" in ids
@@ -29,12 +30,17 @@ def test_new_local_framework_capabilities_are_available_and_detector_blind() -> 
     local_tests = by_id["evidence.local-test-run.v1"]
     assert local_tests["available"] is True
     assert local_tests["component_type"] == "framework"
-    assert "command/return code" in local_tests["notes"]
+    assert "source-tree fingerprint" in local_tests["notes"]
 
     manifest_fetch = by_id["c2pa.manifest-fetch.bounded.v1"]
     assert manifest_fetch["available"] is True
     assert manifest_fetch["component_type"] == "resolver-client"
     assert "no redirects or proxies" in manifest_fetch["notes"]
+
+    regression = by_id["regression.fixed-suite-baseline.v1"]
+    assert regression["available"] is True
+    assert regression["component_type"] == "regression-gate"
+    assert "reported as indeterminate" in regression["notes"]
 
 
 def test_signature_capability_tracks_optional_dependency(monkeypatch) -> None:
