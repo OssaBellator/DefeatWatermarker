@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -133,3 +134,51 @@ def test_signature_cli_wrong_public_key_returns_verification_failure(
     verification = json.loads(capsys.readouterr().out)
     assert verification["valid"] is False
     assert "fingerprint" in verification["error"]
+
+
+def test_signature_cli_refuses_to_overwrite_private_key(tmp_path: Path) -> None:
+    evidence_path = tmp_path / "evidence.json"
+    evidence_path.write_text(json.dumps(_evidence()), encoding="utf-8")
+    private_path, _ = _keys(tmp_path)
+    before = private_path.read_bytes()
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "sign",
+                str(evidence_path),
+                "--private-key",
+                str(private_path),
+                "--key-id",
+                "local-release-test",
+                "--output",
+                str(private_path),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert private_path.read_bytes() == before
+
+
+def test_signature_cli_refuses_to_overwrite_evidence(tmp_path: Path) -> None:
+    evidence_path = tmp_path / "evidence.json"
+    original = json.dumps(_evidence()).encode("utf-8")
+    evidence_path.write_bytes(original)
+    private_path, _ = _keys(tmp_path)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "sign",
+                str(evidence_path),
+                "--private-key",
+                str(private_path),
+                "--key-id",
+                "local-release-test",
+                "--output",
+                str(evidence_path),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert evidence_path.read_bytes() == original
