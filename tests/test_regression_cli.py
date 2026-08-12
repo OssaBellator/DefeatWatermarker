@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from defeat_watermarker.adapters.base import WatermarkAdapter
+from defeat_watermarker.digests import content_digest
 from defeat_watermarker.engine import RobustnessEngine
 from defeat_watermarker.evidence import build_evidence_bundle
 from defeat_watermarker.metrics import summarize_report
@@ -107,6 +108,24 @@ def _create_baseline(tmp_path: Path, evidence: dict[str, object]) -> tuple[Path,
     return evidence_path, baseline_path
 
 
+def _create_pass_report(tmp_path: Path) -> tuple[Path, Path, Path]:
+    evidence = _evidence(b"fixture-mark keep")
+    _, baseline_path = _create_baseline(tmp_path, evidence)
+    current = tmp_path / "current.json"
+    report = tmp_path / "regression-report.json"
+    _write_evidence(current, evidence)
+    assert main(
+        [
+            "check",
+            str(baseline_path),
+            str(current),
+            "--output",
+            str(report),
+        ]
+    ) == 0
+    return baseline_path, current, report
+
+
 def test_regression_cli_baseline_round_trips_into_loader(tmp_path: Path) -> None:
     _, baseline_path = _create_baseline(tmp_path, _evidence(b"fixture-mark keep"))
 
@@ -155,6 +174,37 @@ def test_regression_cli_check_returns_indeterminate_for_runtime_change(
     assert payload["adapter_runtime_match"] is False
 
 
+def test_regression_cli_verify_recomputes_saved_report(tmp_path: Path, capsys) -> None:
+    baseline_path, current, report = _create_pass_report(tmp_path)
+
+    assert main(
+        ["verify", str(baseline_path), str(current), str(report)]
+    ) == 0
+    verification = json.loads(capsys.readouterr().out)
+    assert verification["valid"] is True
+    assert "comparison_semantics" in verification["checks"]
+
+
+def test_regression_cli_verify_rejects_rehashed_semantic_tamper(
+    tmp_path: Path, capsys
+) -> None:
+    baseline_path, current, report = _create_pass_report(tmp_path)
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    payload["status"] = "fail"
+    payload["reasons"] = ["forged regression"]
+    payload["report_id"] = content_digest(
+        {key: value for key, value in payload.items() if key != "report_id"}
+    )
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert main(
+        ["verify", str(baseline_path), str(current), str(report)]
+    ) == 8
+    verification = json.loads(capsys.readouterr().out)
+    assert verification["valid"] is False
+    assert any("does not match recomputed" in error for error in verification["errors"])
+
+
 def test_regression_cli_baseline_refuses_to_overwrite_evidence(tmp_path: Path) -> None:
     evidence_path = tmp_path / "evidence.json"
     original = json.dumps(_evidence(b"fixture-mark keep")).encode("utf-8")
@@ -195,6 +245,30 @@ def test_regression_cli_check_refuses_to_overwrite_inputs(
                 "check",
                 str(baseline_path),
                 str(current),
+                "--output",
+                str(paths[target]),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert paths[target].read_bytes() == before
+
+
+@pytest.mark.parametrize("target", ["baseline", "evidence", "report"])
+def test_regression_cli_verify_refuses_to_overwrite_inputs(
+    tmp_path: Path, target: str
+) -> None:
+    baseline_path, current, report = _create_pass_report(tmp_path)
+    paths = {"baseline": baseline_path, "evidence": current, "report": report}
+    before = paths[target].read_bytes()
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "verify",
+                str(baseline_path),
+                str(current),
+                str(report),
                 "--output",
                 str(paths[target]),
             ]
