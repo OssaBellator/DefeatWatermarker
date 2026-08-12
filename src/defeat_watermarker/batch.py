@@ -89,8 +89,6 @@ def _safe_relative(path: Path, root: Path) -> str:
 
 
 def _candidate_files(root: Path, *, recursive: bool) -> tuple[Path, ...]:
-    if root.is_symlink():
-        raise BatchError("batch input root must not be a symlink")
     if root.is_file():
         return (root,)
     if not root.is_dir():
@@ -122,22 +120,28 @@ def run_batch(
     trust_anchors: Path | None = None,
     detector_plugins: tuple[str, ...] = (),
 ) -> BatchResult:
+    if input_path.is_symlink():
+        raise BatchError("batch input root must not be a symlink")
     resolved = input_path.resolve()
     files = _candidate_files(resolved, recursive=recursive)
     root = resolved.parent if resolved.is_file() else resolved
     total_bytes = 0
     records: list[BatchRecord] = []
+    registry = _registry(trust_anchors, detector_plugins)
+    mutations = _mutations()
 
     for path in files:
         relative = path.name if resolved.is_file() else _safe_relative(path, root)
         size = path.stat().st_size
+        media_type = _media_type(path)
+        modality = _infer_modality(media_type)
         if size > DEFAULT_MAX_ARTIFACT_BYTES:
             message = f"source artifact exceeds max bytes: {size}"
             records.append(
                 BatchRecord(
                     relative_path=relative,
-                    media_type=_media_type(path),
-                    modality=_infer_modality(_media_type(path)).value,
+                    media_type=media_type,
+                    modality=modality.value,
                     mode="error",
                     record_id=None,
                     record=None,
@@ -149,8 +153,6 @@ def run_batch(
         if total_bytes > _MAX_BATCH_BYTES:
             raise BatchError(f"batch exceeds {_MAX_BATCH_BYTES} total source bytes")
 
-        media_type = _media_type(path)
-        modality = _infer_modality(media_type)
         try:
             artifact = Artifact(
                 data=read_bounded_bytes(path),
@@ -158,7 +160,6 @@ def run_batch(
                 name=path.name,
                 modality=modality,
             )
-            registry = _registry(trust_anchors, detector_plugins)
             suite = None if scan_only else builtin_suite_for(modality)
             if suite is None:
                 scan = build_scan_evidence(artifact, registry)
@@ -173,7 +174,7 @@ def run_batch(
                     )
                 )
             else:
-                report = RobustnessEngine(registry, _mutations()).evaluate(
+                report = RobustnessEngine(registry, mutations).evaluate(
                     artifact, suite.scenarios
                 )
                 summary = summarize_report(report)
