@@ -35,6 +35,52 @@ def builtin_capabilities() -> tuple[ComponentCapability, ...]:
     c2pa_available = C2paPythonBackend.available()
     return (
         ComponentCapability(
+            component_id="evidence.content-addressed.v2",
+            component_type="framework",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            notes="Evidence ID binds artifact reference, suite, report, summary and gate policy/result.",
+        ),
+        ComponentCapability(
+            component_id="evidence.offline-verifier.v1",
+            component_type="framework",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+        ),
+        ComponentCapability(
+            component_id="suite.detector-blind-fixed.v1",
+            component_type="framework",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+            notes="Mutation selection is independent of detector feedback.",
+        ),
+        ComponentCapability(
+            component_id="metrics.detection-survival.v1",
+            component_type="metric",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+        ),
+        ComponentCapability(
+            component_id="metrics.provenance-assurance-continuity.v1",
+            component_type="metric",
+            available=True,
+            modalities=(Modality.UNKNOWN,),
+        ),
+        ComponentCapability(
+            component_id="interoperability.matrix.v1",
+            component_type="planned",
+            available=False,
+            modalities=(Modality.UNKNOWN,),
+            notes="Requires multiple independent detector/provider implementations and versioned comparison fixtures.",
+        ),
+        ComponentCapability(
+            component_id="reliability.false-positive-negative.v1",
+            component_type="planned",
+            available=False,
+            modalities=(Modality.UNKNOWN,),
+            notes="Requires labelled positive/negative corpora and detector-specific operating-point reporting.",
+        ),
+        ComponentCapability(
             component_id="builtin.container-hints.v1",
             component_type="adapter",
             available=True,

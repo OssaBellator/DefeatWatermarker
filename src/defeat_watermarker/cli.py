@@ -24,6 +24,7 @@ from .mutations import (
     JpegReencodeQuality85,
     Resize75Quality85,
 )
+from .profiles import ProfileError, ReadinessStatus, assess_profile, load_profile
 from .registry import AdapterRegistry
 from .suites import SuiteError, load_suite
 
@@ -132,6 +133,29 @@ def _verify_evidence(path: Path, suite_path: Path | None) -> int:
     return 0 if result.valid else 4
 
 
+def _validate_profile(path: Path) -> int:
+    profile = load_profile(path)
+    _emit(
+        {
+            "valid": True,
+            "profile_id": profile.profile_id,
+            "version": profile.version,
+            "applies_from": profile.applies_from,
+            "digest": profile.digest,
+        },
+        None,
+    )
+    return 0
+
+
+def _assess_profile(path: Path, suite_paths: list[Path]) -> int:
+    profile = load_profile(path)
+    suites = tuple(load_suite(suite_path) for suite_path in suite_paths)
+    assessment = assess_profile(profile, suites)
+    _emit(assessment.to_dict(), None)
+    return 0 if assessment.status is ReadinessStatus.READY else 5
+
+
 def _evaluate(
     path: Path,
     suite_path: Path,
@@ -216,6 +240,20 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("path", type=Path)
     verify.add_argument("--suite", type=Path)
 
+    profile = subparsers.add_parser(
+        "profile", help="validate and assess versioned engineering-readiness profiles"
+    )
+    profile_subparsers = profile.add_subparsers(dest="profile_command", required=True)
+    profile_validate = profile_subparsers.add_parser(
+        "validate", help="validate and digest an engineering profile"
+    )
+    profile_validate.add_argument("path", type=Path)
+    profile_assess = profile_subparsers.add_parser(
+        "assess", help="assess capabilities and fixed-suite modality coverage"
+    )
+    profile_assess.add_argument("path", type=Path)
+    profile_assess.add_argument("--suite", type=Path, action="append", default=[])
+
     evaluate = subparsers.add_parser(
         "evaluate",
         help="run a predefined suite and emit content-addressed evidence",
@@ -249,6 +287,10 @@ def main(argv: list[str] | None = None) -> int:
             return _validate_suite(args.path)
         if args.command == "evidence" and args.evidence_command == "verify":
             return _verify_evidence(args.path, args.suite)
+        if args.command == "profile" and args.profile_command == "validate":
+            return _validate_profile(args.path)
+        if args.command == "profile" and args.profile_command == "assess":
+            return _assess_profile(args.path, args.suite)
         if args.command == "evaluate":
             return _evaluate(
                 args.path,
@@ -261,7 +303,15 @@ def main(argv: list[str] | None = None) -> int:
                 args.min_trust_survival_rate,
                 args.min_provenance_id_preservation_rate,
             )
-    except (OSError, UnicodeError, EvidenceError, SuiteError, ValueError, KeyError) as exc:
+    except (
+        OSError,
+        UnicodeError,
+        EvidenceError,
+        ProfileError,
+        SuiteError,
+        ValueError,
+        KeyError,
+    ) as exc:
         parser.error(str(exc))
     raise AssertionError("unreachable")
 

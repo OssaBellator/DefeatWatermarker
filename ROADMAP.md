@@ -45,7 +45,9 @@ DefeatWatermarker follows an evidence-first development model: fixed evaluation 
 ## M4 — Interoperability and policy profiles
 
 - [x] Machine-readable built-in capability registry
+- [x] Versioned EU Article 50(2) provider-marking engineering profile
+- [x] Capability/modality gap assessment with non-certification disclaimer
 - [ ] Multi-provider detector adapters behind optional dependencies
 - [ ] Versioned interoperability matrices
-- [ ] EU Article 50 readiness profile as an engineering aid, explicitly not legal certification
+- [ ] False-positive/false-negative reliability benchmark corpus
 - [ ] Regression baselines suitable for release gates

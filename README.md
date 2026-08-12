@@ -14,16 +14,18 @@ The current implementation provides:
 - optional standards-aware C2PA verification through the official `c2pa-python` Reader;
 - explicit C2PA valid/trusted/invalid/error states and custom trust-anchor support;
 - bounded provenance graphs for manifests and ingredients;
+- a bounded soft-binding resolver contract that does not accept raw artifact uploads;
 - a mutation interface with detector-blind transformations;
 - non-destructive control mutations plus a fixed image platform-rendition suite;
-- an evaluation engine where mutations never receive detector results;
-- strict versioned robustness-suite documents with canonical SHA-256 digests;
-- content-addressed evidence bundles binding artifact hash, suite hash, report hash, and aggregate results;
+- strict versioned robustness-suite and engineering-profile documents with canonical SHA-256 digests;
+- content-addressed evidence bundles binding artifact hash, suite hash, report hash, summary and gate policy/result;
+- offline evidence self-consistency verification;
 - separate survival metrics for detection, cryptographic verification, trust, and provenance identifiers;
 - CI-style pass/fail/indeterminate gates;
+- an EU Article 50(2) provider-marking engineering-readiness profile that reports gaps rather than legal compliance;
 - JSON-safe reports that contain no artifact or derivative bytes.
 
-The evidence model deliberately borrows the strongest engineering pattern from the companion E2H project: important claims are bound to replayable/versioned inputs and content-addressed observable evidence rather than hidden state. Here, the immutable input is a robustness suite instead of an agent task capsule.
+The evidence model borrows a core engineering pattern from the companion E2H project: important claims are bound to replayable/versioned inputs and content-addressed observable evidence rather than hidden state. Here, the immutable input is a robustness suite instead of an agent task capsule.
 
 ## Install
 
@@ -43,7 +45,7 @@ pip install -e '.[c2pa]'   # official C2PA Reader integration
 pip install -e '.[image]'  # fixed image rendition suite
 ```
 
-Inspect what is available in the current environment:
+Inspect the current environment:
 
 ```bash
 python -m defeat_watermarker capabilities
@@ -60,6 +62,10 @@ python -m defeat_watermarker evaluate path/to/asset.png \
   --media-type image/png \
   --suite suites/image-platform-v0.1.json \
   --output .defeat-watermarker/evidence.json
+
+python -m defeat_watermarker evidence verify \
+  .defeat-watermarker/evidence.json \
+  --suite suites/image-platform-v0.1.json
 ```
 
 C2PA signer trust can be evaluated against explicit PEM trust anchors:
@@ -71,6 +77,21 @@ python -m defeat_watermarker scan asset.jpg \
 ```
 
 Remote C2PA manifest fetching remains disabled by default.
+
+## EU Article 50 engineering profile
+
+The repository includes a provider-side Article 50(2) **engineering-readiness** profile. It is not a legal compliance checker or certification mechanism.
+
+```bash
+python -m defeat_watermarker profile validate \
+  profiles/eu-article50-provider-marking-v0.1.json
+
+python -m defeat_watermarker profile assess \
+  profiles/eu-article50-provider-marking-v0.1.json \
+  --suite suites/image-platform-v0.1.json
+```
+
+The initial assessment is expected to expose gaps: the repository does not yet have fixed audio/video/text suites, a multi-implementation interoperability matrix, or a labelled false-positive/false-negative reliability corpus. Exit code `5` means engineering gaps remain.
 
 ## CI gates
 
@@ -96,12 +117,13 @@ A suite has a canonical digest independent of JSON formatting. Evaluation produc
 - suite ID, version, and canonical digest;
 - report digest and structured detector comparisons;
 - aggregate robustness/assurance metrics;
+- any requested gate policy and gate result;
 - a deterministic evidence ID covering the complete bundle core.
 
-This lets CI, auditors, and future registries verify that two reports refer to the same asset and exact test suite without retaining transformed media.
+This lets CI, auditors, and future registries verify that two reports refer to the same asset and exact test suite without retaining transformed media. `evidence verify` checks those bindings offline.
 
 ## Design boundary
 
 The core does not implement adaptive optimization against detectors, detector-gradient access, detector-guided mutation selection, or a `remove watermark` operation. Mutation implementations are selected before results are produced and only receive an artifact plus a predefined scenario. Evaluation reports expose evidence and confidence/assurance changes, not derivative artifact bytes.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/C2PA.md`](docs/C2PA.md), and [`ROADMAP.md`](ROADMAP.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/C2PA.md`](docs/C2PA.md), [`docs/RESOLVERS.md`](docs/RESOLVERS.md), [`docs/EU_ARTICLE50.md`](docs/EU_ARTICLE50.md), and [`ROADMAP.md`](ROADMAP.md).

@@ -1,0 +1,23 @@
+{
+  "schema_version": "0.1",
+  "profile_id": "eu.article50.provider-marking",
+  "version": "2026.08-v0.1",
+  "title": "EU AI Act Article 50(2) provider marking — engineering readiness",
+  "applies_from": "2026-08-02",
+  "scope_note": "Engineering test profile for provider-side machine-readable marking and detectability of synthetic audio, image, video and text. It operationalises test dimensions only and does not determine legal scope, exemptions, technical feasibility, compliance or conformity.",
+  "required_modalities": ["audio", "image", "video", "text"],
+  "required_capabilities": [
+    "evidence.content-addressed.v2",
+    "evidence.offline-verifier.v1",
+    "suite.detector-blind-fixed.v1",
+    "metrics.detection-survival.v1",
+    "interoperability.matrix.v1",
+    "reliability.false-positive-negative.v1"
+  ],
+  "minimum_scenarios_per_modality": 1,
+  "source_references": [
+    "https://eur-lex.europa.eu/eli/reg/2024/1689/oj",
+    "https://digital-strategy.ec.europa.eu/en/library/guidelines-transparency-obligations-providers-and-deployers-ai-systems",
+    "https://digital-strategy.ec.europa.eu/en/policies/code-practice-ai-generated-content"
+  ]
+}
