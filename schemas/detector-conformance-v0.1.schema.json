@@ -52,7 +52,60 @@
     "detection": {
       "oneOf": [
         {"type": "null"},
-        {"type": "object"}
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "adapter_id",
+            "family",
+            "detected",
+            "confidence",
+            "evidence",
+            "warnings",
+            "provenance_identifier",
+            "cryptographically_verified",
+            "registry_verified",
+            "verification_state",
+            "validation_codes",
+            "provenance_graph"
+          ],
+          "properties": {
+            "adapter_id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "family": {"type": "string", "minLength": 1},
+            "detected": {"type": "boolean"},
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "evidence": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {"type": "string", "maxLength": 2048}
+            },
+            "warnings": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {"type": "string", "maxLength": 2048}
+            },
+            "provenance_identifier": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "string", "maxLength": 2048}
+              ]
+            },
+            "cryptographically_verified": {"type": "boolean"},
+            "registry_verified": {"type": "boolean"},
+            "verification_state": {"type": "string", "minLength": 1},
+            "validation_codes": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {"type": "string", "maxLength": 2048}
+            },
+            "provenance_graph": {
+              "oneOf": [
+                {"type": "null"},
+                {"type": "object"}
+              ]
+            }
+          }
+        }
       ]
     }
   }
