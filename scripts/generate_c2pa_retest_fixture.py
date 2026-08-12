@@ -59,18 +59,36 @@ def _tamper_jpeg_scan_data(source: Path, output: Path) -> int:
 def _sign_jpeg(source: Path, output: Path, chain: Path, private_key: Path) -> str:
     from c2pa import Builder, C2paSignerInfo, C2paSigningAlg, Context, Signer
 
-    manifest_json = json.dumps(
-        {
-            "claim_generator_info": [
-                {
-                    "name": "DefeatWatermarker fixture generator",
-                    "version": "0.1.0",
-                }
-            ],
-            "title": "DefeatWatermarker signed C2PA regression fixture",
-            "assertions": [],
-        }
-    )
+    # Match the current official V2 signing example: a created action with an
+    # explicit digitalSourceType keeps the generated fixture semantically valid,
+    # while the hard binding remains what the tamper test intentionally breaks.
+    manifest_definition = {
+        "claim_generator_info": [
+            {
+                "name": "DefeatWatermarker fixture generator",
+                "version": "0.1.0",
+            }
+        ],
+        "format": "image/jpeg",
+        "title": "DefeatWatermarker signed C2PA regression fixture",
+        "ingredients": [],
+        "assertions": [
+            {
+                "label": "c2pa.actions",
+                "data": {
+                    "actions": [
+                        {
+                            "action": "c2pa.created",
+                            "digitalSourceType": (
+                                "http://cv.iptc.org/newscodes/digitalsourcetype/"
+                                "digitalCreation"
+                            ),
+                        }
+                    ]
+                },
+            }
+        ],
+    }
     signer_info = C2paSignerInfo(
         alg=C2paSigningAlg.ES256,
         sign_cert=chain.read_bytes(),
@@ -79,7 +97,7 @@ def _sign_jpeg(source: Path, output: Path, chain: Path, private_key: Path) -> st
     )
     with Context() as context:
         with Signer.from_info(signer_info) as signer:
-            with Builder(manifest_json, context) as builder:
+            with Builder(manifest_definition, context) as builder:
                 with source.open("rb") as src, output.open("w+b") as dest:
                     builder.sign(signer, "image/jpeg", src, dest)
         from c2pa import Reader
