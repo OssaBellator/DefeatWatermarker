@@ -15,6 +15,7 @@ REQUIRED_SCRIPTS = {
     "defeat-watermarker-batch-verify",
     "defeat-watermarker-benchmark-verify",
     "defeat-watermarker-benchmark-baseline",
+    "defeat-watermarker-detector-conformance",
     "defeat-watermarker-report",
 }
 
