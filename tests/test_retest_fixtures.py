@@ -8,6 +8,7 @@ from defeat_watermarker.ui_cli import main as ui_main
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "fixtures" / "retests"
+_HINT_ADAPTER_ID = "builtin.container-hints.v1"
 
 
 def _run_fixture(name: str, media_type: str, output: Path) -> dict[str, object]:
@@ -53,7 +54,7 @@ def test_generated_image_fixture_exercises_hint_loss_under_rendition(
     baseline = {
         item["adapter_id"]: item for item in payload["report"]["baseline"]
     }
-    hint = baseline["builtin.container-hints"]
+    hint = baseline[_HINT_ADAPTER_ID]
     assert hint["detected"] is True
     assert any("c2pa" in evidence.lower() for evidence in hint["evidence"])
 
@@ -61,7 +62,7 @@ def test_generated_image_fixture_exercises_hint_loss_under_rendition(
         comparison
         for scenario in payload["report"]["scenarios"]
         for comparison in scenario["comparisons"]
-        if comparison["adapter_id"] == "builtin.container-hints"
+        if comparison["adapter_id"] == _HINT_ADAPTER_ID
     ]
     assert comparisons
     assert all(comparison["after"]["detected"] is False for comparison in comparisons)
